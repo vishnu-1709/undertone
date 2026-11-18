@@ -127,7 +127,7 @@
         <button class="chip" data-preset="ocean">Ocean</button>
         <button class="chip" data-preset="fireplace">Fireplace</button>
         <button class="chip" data-preset="cafe">Café</button>
-        <button class="chip" data-preset="piano">Soft piano</button>
+        <button class="chip" data-preset="piano">Piano in the rain</button>
         <button class="chip" data-preset="strings">Strings</button>
         <button class="chip" data-preset="pad">Ambient pad</button>
         <label class="file">Upload a song<input id="coverFile" type="file" accept="audio/*,video/*"></label>
@@ -580,6 +580,15 @@ function wobble(n, rateHz, lo) {
   for (let i = 0; i < n; i++) { if (i % step === 0) { a = b; b = Math.random(); } const t = (i % step) / step, s = a + (b - a) * (0.5 - 0.5 * Math.cos(Math.PI * t)); out[i] = lo + (1 - lo) * s; }
   return out;
 }
+// Simple hall reverb (Schroeder: 4 parallel combs + 2 allpasses).
+function reverb(x, decay = 0.84) {
+  const n = x.length, out = new Float64Array(n), combs = [1557, 1617, 1491, 1422].map(d => Math.round(d * SR / 44100));
+  for (const d of combs) { const buf = new Float64Array(d); let p = 0, lp = 0;
+    for (let i = 0; i < n; i++) { const yv = buf[p]; lp = 0.7 * yv + 0.3 * lp; buf[p] = x[i] + lp * decay; out[i] += yv * 0.25; p = (p + 1) % d; } }
+  for (const d of [225, 556].map(d => Math.round(d * SR / 44100))) { const buf = new Float64Array(d); let p = 0;
+    for (let i = 0; i < n; i++) { const bv = buf[p], yv = -out[i] * 0.5 + bv; buf[p] = out[i] + bv * 0.5; out[i] = yv; p = (p + 1) % d; } }
+  return out;
+}
 // Sustained chord ensemble used by Strings and Ambient pad.
 function ensemble(o) {
   // one pass through the 4 chords, then looped (the chords repeat anyway)
@@ -660,23 +669,27 @@ const PRESETS = {
     return finish(x);
   },
   piano: () => {
-    const n = SR * 32, x = new Float64Array(n), beat = 0.42;
+    // Rolling two-hand arpeggios with the pedal down, then a hall reverb that
+    // blurs the notes into one continuous wash (a struck string can't sustain alone).
+    const n = SR * 32, x = new Float64Array(n), step = 0.21;
     const key = (t, f, a) => {
       const s0 = Math.round(t * SR), fk = [], d = [], r = [];
-      for (let k = 1; k <= 6; k++) { fk.push(f * k * (1 + 0.0004 * k * k)); d.push(1 / (k * k)); r.push(Math.exp(-(0.7 + 0.5 * k) / SR)); }
-      for (let i = 0; i < SR * 4.5 && s0 + i < n; i++) { const u = i / SR; let v = 0;
+      for (let k = 1; k <= 6; k++) { fk.push(f * k * (1 + 0.0004 * k * k)); d.push(1 / (k * k)); r.push(Math.exp(-(0.5 + 0.45 * k) / SR)); }
+      for (let i = 0; i < SR * 5 && s0 + i < n; i++) { const u = i / SR; let v = 0;
         for (let k = 0; k < 6; k++) { v += fsin(fk[k] * u) * d[k]; d[k] *= r[k]; }   // each harmonic decays at its own rate
         x[s0 + i] += a * Math.min(1, u * 200) * v; }
     };
-    for (let t = 0, j = 0; t < 31; t += beat, j++) {         // gentle arpeggios with the pedal down
-      const ch = CHORDS[Math.floor(t / (8 * beat)) % 4], f = [ch[0] / 2, ch[1], ch[2], ch[3], ch[2], ch[1]][j % 6];
-      key(t, f, 0.18 + 0.05 * Math.random());
-      if (j % 8 === 0) key(t, ch[0] / 2, 0.22);
+    for (let t = 0, j = 0; t < 31.5; t += step, j++) {
+      const ch = CHORDS[Math.floor(t / (16 * step)) % 4];
+      const up = [ch[0], ch[1], ch[2], ch[3], ch[2] * 2, ch[3], ch[2], ch[1]];        // right hand rolls up and down
+      key(t, up[j % 8], 0.13 + 0.04 * Math.random());
+      if (j % 4 === 0) key(t, (j % 8 === 0 ? ch[0] : ch[2]) / 2, 0.16);              // left hand
     }
-    // soft rain against the window keeps the voice's range covered between notes
-    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(x) * Math.pow(10, -4 / 20) / (rms(bed) + 1e-12);
-    for (let i = 0; i < n; i++) x[i] += bed[i] * k;
-    return finish(x);
+    const wet = reverb(x), y = new Float64Array(n);
+    for (let i = 0; i < n; i++) y[i] = x[i] * 0.7 + wet[i] * 0.9;
+    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(y) / (rms(bed) + 1e-12);
+    for (let i = 0; i < n; i++) y[i] += bed[i] * k;                                 // rain on the window, as loud as the piano: the noise is what hides the voice
+    return finish(y);
   },
   // Continuous instrumentals: dense, detuned, slowly moving chords that never stop,
   // with a little bow / air noise so they cover a voice like noise does.
