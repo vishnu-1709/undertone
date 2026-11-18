@@ -92,6 +92,12 @@
             <option value="800">0.8 kHz</option>
           </select>
         </label>
+        <label>Quiet-part protection (lift quiet parts, voice follows song)
+          <select id="protect">
+            <option value="1" selected>On</option>
+            <option value="0">Off</option>
+          </select>
+        </label>
         <label>Leak masking (cover swells when you speak)
           <select id="mask">
             <option value="0">Off</option>
@@ -278,15 +284,68 @@ function maskCover(c, v, amount) {
   for (let i = 0; i < c.length; i++) out[i] = c[i] + amount * Math.min(1, env[i] / ref) * band[i];
   return out;
 }
-function render(voiceIn, coverIn, mode, levelDb, lowpass, mask = 1) {
+// Smoothed RMS envelope (attack/release in seconds).
+function envelope(x, att, rel) {
+  const a = Math.exp(-1 / (att * SR)), r = Math.exp(-1 / (rel * SR)), out = new Float64Array(x.length);
+  let e = 0;
+  for (let i = 0; i < x.length; i++) { const p = x[i] * x[i]; e = p > e ? a * e + (1 - a) * p : r * e + (1 - r) * p; out[i] = Math.sqrt(e); }
+  return out;
+}
+// Centred sliding-window RMS (offline, so it can look ahead): smooths over
+// note decays but drops straight into quiet passages.
+function windowRms(x, winS = 0.4) {
+  const w = Math.max(1, Math.round(winS * SR)), h = w >> 1, cs = new Float64Array(x.length + 1), out = new Float64Array(x.length);
+  for (let i = 0; i < x.length; i++) cs[i + 1] = cs[i] + x[i] * x[i];
+  for (let i = 0; i < x.length; i++) { const a = Math.max(0, i - h), b = Math.min(x.length, i + h); out[i] = Math.sqrt((cs[b] - cs[a]) / (b - a)); }
+  return out;
+}
+// Loudness of the song's busy parts: 90th percentile of its envelope.
+function loudRef(env) {
+  const step = Math.max(1, Math.floor(env.length / 4000)), sample = [];
+  for (let i = 0; i < env.length; i += step) sample.push(env[i]);
+  sample.sort((a, b) => a - b); return sample[Math.floor(sample.length * 0.9)] + 1e-12;
+}
+// Quiet-part protection, step 1: lift quiet passages of the cover (upward compression, max +12 dB).
+// Slow envelope so note decays inside busy parts are left alone.
+function compressCover(c, ratio = 3, maxBoostDb = 12) {
+  const env = windowRms(c), ref = loudRef(env), maxG = Math.pow(10, maxBoostDb / 20), out = new Float64Array(c.length);
+  for (let i = 0; i < c.length; i++) {
+    const g = env[i] < ref ? Math.min(maxG, Math.pow(ref / (env[i] + 1e-9), 1 - 1 / ratio)) : 1;
+    out[i] = c[i] * g;
+  }
+  return out;
+}
+// Step 2: where the cover is still near-silent, fill with soft pink noise up to -15 dB under its usual level.
+function autoFill(c, floorDb = -15) {
+  const env = windowRms(c, 0.2), floor = loudRef(windowRms(c)) * Math.pow(10, floorDb / 20), out = new Float64Array(c.length);
+  let b0 = 0, b1 = 0, b2 = 0;
+  for (let i = 0; i < c.length; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 = 0.99765 * b0 + w * 0.099046; b1 = 0.963 * b1 + w * 0.2965164; b2 = 0.57 * b2 + w * 1.0526913;
+    const pink = (b0 + b1 + b2 + w * 0.1848) * 0.18;
+    const need = Math.sqrt(Math.max(0, floor * floor - env[i] * env[i]));
+    out[i] = c[i] + pink * need / 0.35;
+  }
+  return out;
+}
+// Step 3: the voice follows the cover's loudness, dropping at most 6 dB, smoothed over ~200 ms.
+function voiceFollow(v, c, maxDropDb = 6) {
+  const env = windowRms(c), ref = loudRef(env), lo = Math.pow(10, -maxDropDb / 20), k = Math.exp(-1 / (0.2 * SR));
+  let g = 1;
+  for (let i = 0; i < v.length; i++) { const t = Math.max(lo, Math.min(1, env[i] / ref)); g = k * g + (1 - k) * t; v[i] *= g; }
+  return v;
+}
+function render(voiceIn, coverIn, mode, levelDb, lowpass, mask = 1, protect = true) {
   let v = butter4(voiceIn, "hp", 120);
   if (lowpass) v = butter4(v, "lp", lowpass);
   const lead = SR * 1.5, tail = SR * 1.5, n = lead + v.length + tail;
   let c = fitLength(coverIn, n);
   const cp = peak(c); c = c.map(x => x / (cp + 1e-12) * 0.5); // cover peak -6 dBFS
+  if (protect) c = autoFill(compressCover(c));
   const vf = new Float64Array(n); vf.set(v, lead);
   const g = activeRms(c) * Math.pow(10, levelDb / 20) / (activeRms(v) + 1e-12);
   for (let i = 0; i < n; i++) vf[i] *= g;
+  if (protect) voiceFollow(vf, c);
   if (mask > 0) c = maskCover(c, vf, mask);
   fade(c); fade(vf);
   let L, R;
@@ -384,7 +443,7 @@ $("playVoiceBtn").onclick = () => play([voice]);
 $("playCoverBtn").onclick = () => play([cover.subarray(0, SR * 10)]);
 
 function addResult(mode, level, lp) {
-  const r = render(voice, cover, mode, level, lp, +$("mask").value);
+  const r = render(voice, cover, mode, level, lp, +$("mask").value, $("protect").value === "1");
   const box = document.createElement("div"); box.className = "result";
   const name = `undertone ${mode} ${{ "-8": "soft", "-5": "normal", "-2": "loud" }[level] || "v" + -level}.wav`;
   box.innerHTML = `
