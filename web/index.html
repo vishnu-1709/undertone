@@ -103,14 +103,7 @@
     <p class="hint">Plays as just the song on speakers. On earphones: song in the left ear, your voice clear in the right.</p>
     <details class="hint" style="margin-top:10px">
       <summary>Advanced</summary>
-      <p id="modeHint" class="hint"></p>
       <div class="grid" style="margin-top:8px">
-        <label>Mode
-          <select id="mode">
-            <option value="clear" selected>Clear · crisp voice on earphones (recommended)</option>
-            <option value="hidden">Hidden · extra safe if someone holds the phone to their ear</option>
-          </select>
-        </label>
         <label>Voice filter (lower = less leak, more muffled)
           <select id="lowpass">
             <option value="0">None</option>
@@ -505,15 +498,6 @@ const S = { voiceRaw: null, coverRaw: null, coverName: "", vBase: null, vScaled:
 
 function frames(env) { const n = Math.ceil(env.length / FR), f = new Float64Array(n); for (let i = 0; i < n; i++) f[i] = env[Math.min(env.length - 1, i * FR + FR / 2)]; return f; }
 const protectOn = () => $("protect").value === "1";
-const hiddenMode = () => $("mode").value === "hidden";
-// Hidden mode relies on the brain pulling the flipped voice out of the song,
-// so the voice can sit 5 dB lower than in Clear mode.
-const modeOffset = () => hiddenMode() ? -5 : 0;
-function updateModeHint() {
-  $("modeHint").textContent = hiddenMode()
-    ? "Song in both ears with your voice flipped between them. Phone speakers bury the voice; on earphones your brain pulls it out. Softer, but hidden much better."
-    : "Song in the left ear, your voice alone in the right ear. Clearest on earphones. On two-speaker phones it stays hidden at normal distance; held right against one speaker, the voice can be heard.";
-}
 
 function prepCover() {
   if (!S.coverRaw) return;
@@ -532,11 +516,8 @@ function prepVoice() {
 }
 function prepLevel() {
   if (!S.vBase || !S.cover) return;
-  const g = activeRms(S.cover) * Math.pow(10, (+$("level").value + modeOffset()) / 20) / (activeRms(S.vBase) + 1e-12);
+  const g = activeRms(S.cover) * Math.pow(10, +$("level").value / 20) / (activeRms(S.vBase) + 1e-12);
   S.vScaled = S.vBase.map(x => x * g);
-  // Low-range boost: earbuds play it and the brain's unmasking is strongest
-  // there (up to ~15 dB near 250 Hz); phone speakers can't reproduce much of it.
-  if (hiddenMode()) S.vScaled = peakEq(S.vScaled, 250, 0.7, 6);
   S.vF = frames(windowRms(S.vScaled, 0.1));
   const twin = phoneSpeaker(twoSpeaker(S.vScaled, S.vScaled.map(x => -x), SIM_DELAY, SIM_GAIN));
   S.kV = rms(twin) / (rms(S.vScaled) + 1e-12);
@@ -565,10 +546,11 @@ function predictedLeak(offSamples) {
   }
   return out;
 }
-// Hidden: two speakers both carry the song, partial cancellation (kV).
-// Clear: the right speaker plays the voice alone; up close that speaker dominates.
-function leakAt(v, c) { return hiddenMode() ? db(S.kV * v / c) : db(0.5 * v / c) + 6; }
-const leakColor = d => d < -25 ? "#5fd38d" : d < -15 ? "#ffc46b" : "#ff7a7a";
+// The right speaker plays the voice alone; at normal distance both speakers
+// mix in the air (partial cancellation, kV) and the song from the left masks it.
+function leakAt(v, c) { return db(S.kV * v / c); }
+// Thresholds calibrated against a real iPhone test: rain at Normal was barely audible up close.
+const leakColor = d => d < -20 ? "#5fd38d" : d < -10 ? "#ffc46b" : "#ff7a7a";
 function suggest() {
   if (!S.vF || !S.cF) return;
   const vf = S.vF.length, n = Math.max(1, S.cF.length - vf + 1);
@@ -590,8 +572,8 @@ function updatePlaceStatus() {
   if (!S.voiceRaw || !S.coverRaw) { el.textContent = !S.voiceRaw ? "Record your message first." : "Pick a background."; return; }
   const leak = predictedLeak(S.off), worst = leak.reduce((a, b) => Math.max(a, b), -99);
   const t = (S.off / SR).toFixed(1);
-  el.innerHTML = worst < -25 ? `<span class="good">Starts at ${t} s · looks well hidden ✓</span>`
-    : worst < -15 ? `<span class="warn">Starts at ${t} s · a few spots may be faintly heard on two-speaker phones</span>`
+  el.innerHTML = worst < -20 ? `<span class="good">Starts at ${t} s · looks well hidden ✓</span>`
+    : worst < -10 ? `<span class="warn">Starts at ${t} s · a few spots may be faintly heard on two-speaker phones</span>`
     : `<span class="bad">Starts at ${t} s · the song is too quiet under part of your message. Try ✨ Suggest.</span>`;
 }
 
@@ -645,8 +627,7 @@ function twoSpeaker(L, R, delay, gain) {
   return y;
 }
 function shareDb(x, part) { const rest = x.map((s, i) => s - part[i]); return db(rms(part)) - db(rms(rest)); }
-// Hidden: L = C + V, R = C − V.  Clear (one-ear): L = 2C + V, R = −V.
-// Either way a speaker plays (L+R)/2 = C, so the voice cancels.
+// One-ear: L = 2C + V, R = −V. A speaker plays (L+R)/2 = C, so the voice cancels.
 function render() {
   const s = Math.max(0, S.off - LEAD), e = Math.min(S.cover.length, S.off + S.vScaled.length + TAIL), n = e - s;
   let c = S.cover.slice(s, e);
@@ -655,8 +636,7 @@ function render() {
   if (protectOn()) voiceFollow(vf, c);
   const mask = +$("mask").value; if (mask > 0) c = maskCover(c, vf, mask);
   fade(c, Math.round(SR * 0.3)); fade(vf);
-  const L = hiddenMode() ? c.map((x, i) => x + vf[i]) : c.map((x, i) => 2 * x + vf[i]);
-  const R = hiddenMode() ? c.map((x, i) => x - vf[i]) : vf.map(x => -x);
+  const L = c.map((x, i) => 2 * x + vf[i]), R = vf.map(x => -x);
   const k = 0.7079 / Math.max(peak(L), peak(R), 1e-12);
   for (let i = 0; i < n; i++) { L[i] *= k; R[i] *= k; c[i] *= k; vf[i] *= k; }
   return { L, R, C: c, V: vf };
@@ -754,15 +734,14 @@ $("playVoiceBtn").onclick = () => play([S.vBase]);
 $("playCoverBtn").onclick = () => play([S.coverRaw.subarray(0, SR * 15)]);
 $("suggestBtn").onclick = suggest;
 ["cleanup", "lowpass", "protect"].forEach(id => $(id).addEventListener("change", () => refresh()));
-$("mode").addEventListener("change", () => { updateModeHint(); refresh(); });
-updateModeHint();
+
 $("level").addEventListener("change", () => refresh(false));
 
 function addResult() {
   const r = render(), box = document.createElement("div"); box.className = "result";
   const label = { "-8": "soft", "-5": "normal", "-2": "loud" }[$("level").value];
   box.innerHTML = `
-    <div class="title">${hiddenMode() ? "Hidden" : "Clear"} · ${S.coverName} · ${label} voice · from ${(S.off / SR).toFixed(1)} s</div>
+    <div class="title">${S.coverName} · ${label} voice · from ${(S.off / SR).toFixed(1)} s</div>
     <div class="row">
       <button data-a="ear" class="primary">▶ Play (wear earphones)</button>
       <button data-a="spk">Hear it like a speaker</button>
