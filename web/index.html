@@ -99,15 +99,15 @@
         </select>
       </label>
     </div>
-    <p class="hint">Plays as just the song on any speaker, including iPhones. On earphones your voice floats inside their head.</p>
+    <p class="hint">Plays as just the song on speakers. On earphones: song in the left ear, your voice clear in the right.</p>
     <details class="hint" style="margin-top:10px">
       <summary>Advanced</summary>
       <p id="modeHint" class="hint"></p>
       <div class="grid" style="margin-top:8px">
         <label>Mode
           <select id="mode">
-            <option value="hidden" selected>Hidden · best for phone speakers (iPhones)</option>
-            <option value="clear">Clear · loudest on earphones</option>
+            <option value="clear" selected>Clear · crisp voice on earphones (recommended)</option>
+            <option value="hidden">Hidden · extra safe if someone holds the phone to their ear</option>
           </select>
         </label>
         <label>Voice filter (lower = less leak, more muffled)
@@ -500,7 +500,7 @@ const modeOffset = () => hiddenMode() ? -5 : 0;
 function updateModeHint() {
   $("modeHint").textContent = hiddenMode()
     ? "Song in both ears with your voice flipped between them. Phone speakers bury the voice; on earphones your brain pulls it out. Softer, but hidden much better."
-    : "Song in the left ear, your voice alone in the right ear. Clearest on earphones, but on phones with two speakers one speaker plays your voice alone, so it leaks.";
+    : "Song in the left ear, your voice alone in the right ear. Clearest on earphones. On two-speaker phones it stays hidden at normal distance; held right against one speaker, the voice can be heard.";
 }
 
 function prepCover() {
