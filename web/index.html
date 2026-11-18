@@ -127,8 +127,10 @@
         <button class="chip" data-preset="ocean">Ocean</button>
         <button class="chip" data-preset="fireplace">Fireplace</button>
         <button class="chip" data-preset="cafe">Café</button>
-        <button class="chip" data-preset="piano">Piano</button>
+        <button class="chip" data-preset="piano">Soft piano</button>
+        <button class="chip" data-preset="pianoFast">Energetic piano</button>
         <button class="chip" data-preset="strings">Strings</button>
+        <button class="chip" data-preset="stringsDrive">Cinematic strings</button>
         <button class="chip" data-preset="pad">Ambient pad</button>
         <label class="file">Upload a song<input id="coverFile" type="file" accept="audio/*,video/*"></label>
         <button id="playCoverBtn" disabled>Listen</button>
@@ -720,6 +722,30 @@ const PRESETS = {
   piano: () => {
     // Rolling two-hand arpeggios with the pedal down, then a hall reverb that
     // blurs the notes into one continuous wash (a struck string can't sustain alone).
+    const n = SR * 32, x = new Float64Array(n), step = 0.21;
+    const key = (t, f, a) => {
+      const s0 = Math.round(t * SR), fk = [], d = [], r = [];
+      for (let k = 1; k <= 6; k++) { fk.push(f * k * (1 + 0.0004 * k * k)); d.push(1 / (k * k)); r.push(Math.exp(-(0.5 + 0.45 * k) / SR)); }
+      for (let i = 0; i < SR * 5 && s0 + i < n; i++) { const u = i / SR; let v = 0;
+        for (let k = 0; k < 6; k++) { v += fsin(fk[k] * u) * d[k]; d[k] *= r[k]; }   // each harmonic decays at its own rate
+        x[s0 + i] += a * Math.min(1, u * 200) * v; }
+    };
+    for (let t = 0, j = 0; t < 31.5; t += step, j++) {
+      const ch = CHORDS[Math.floor(t / (16 * step)) % 4];
+      const up = [ch[0], ch[1], ch[2], ch[3], ch[2] * 2, ch[3], ch[2], ch[1]];        // right hand rolls up and down
+      key(t, up[j % 8], 0.13 + 0.04 * Math.random());
+      if (j % 4 === 0) key(t, (j % 8 === 0 ? ch[0] : ch[2]) / 2, 0.16);              // left hand
+    }
+    const wet = reverb(x), y = new Float64Array(n);
+    for (let i = 0; i < n; i++) y[i] = x[i] * 0.7 + wet[i] * 0.9;
+    const z = withTexture(y, 1);                                                    // a soft wash of the piano itself
+    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(z) * Math.pow(10, -14 / 20) / (rms(bed) + 1e-12);
+    for (let i = 0; i < n; i++) z[i] += bed[i] * k;                                 // just a little rain on the window
+    return finish(z);
+  },
+  pianoFast: () => {
+    // Rolling two-hand arpeggios with the pedal down, then a hall reverb that
+    // blurs the notes into one continuous wash (a struck string can't sustain alone).
     const n = SR * 32, x = new Float64Array(n), step = 0.125;          // fast flowing 16th notes
     const key = (t, f, a) => {
       const s0 = Math.round(t * SR), fk = [], d = [], r = [];
@@ -743,7 +769,8 @@ const PRESETS = {
   },
   // Continuous instrumentals: dense, detuned, slowly moving chords that never stop,
   // with a little bow / air noise so they cover a voice like noise does.
-  strings: () => ensemble({ ostinato: true, detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -4, lp: 4500 }),
+  strings: () => ensemble({ detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -4, lp: 4500 }),
+  stringsDrive: () => ensemble({ ostinato: true, detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -4, lp: 4500 }),
   pad: () => ensemble({ detunes: [-0.008, -0.003, 0.004, 0.009], harm: 5, vib: 0.3, vibDepth: 0.002, attack: 1.6, octaveUp: false, noiseDb: -1, lp: 3000, sweep: true }),
   rain: () => {
     const n = SR * 30, x = new Float64Array(n);
