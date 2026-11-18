@@ -60,16 +60,14 @@ Re-run with your own voice and cover; real speech and music will move these numb
 
 Speak softly in your normal voice, close to the mic. A real whisper has little energy below 1 kHz and gets filtered out.
 
-## Test bench website (`web/`)
+## Website (`web/`)
 
-A single static page for trying everything in the browser, no install:
+One static page, everything runs in the browser (nothing is uploaded).
 
-1. Record or upload your voice, or use the test voice.
-2. Use the built-in rain or upload a song.
-3. Pick mode, voice level and low-pass, then **Build file** (or **Build all 3 modes**).
-4. For each result: 🔊 **Speaker** plays (L+R)/2 · 📱 **Two-speaker sim** mimics a phone with spaced speakers (adjust ear offset and far-speaker volume) · 🎧 **Earphones** plays stereo · **Left/Right only** · ⬇ **WAV** to send to real phones.
+1. **Your secret message:** record (live mic meter, "too quiet" warning), upload, or use the test voice. *Clean up my voice* removes background noise and evens out loud and soft words.
+2. **Background:** generated Lo-fi beat, Upbeat or Rain, or upload any song, podcast or video.
+3. **Place your voice:** a timeline of the background with your voice block. Drag it; the strip under it shows green (hidden on speakers), yellow (may be faintly heard on two-speaker phones) or red (song too quiet). *Suggest best spot* finds the safest place.
+4. **Make it:** voice loudness Soft / Normal / Loud. Always one-ear: song in the left ear, voice alone in the right ear; a speaker plays only the song. Advanced: voice filter, quiet-part protection, hiss fill (off by default), leak masking.
+5. **Listen & send:** Play (earphones), Hear it like a speaker, Download WAV. Test tools: two-speaker phone sim, left/right ear only, measurements.
 
-Metrics shown: voice level on one speaker, on the two-speaker sim, and in each ear.
-
-Run locally: open `web/index.html` (recording needs https or localhost, e.g. `python3 -m http.server -d web`).
-Deploy on Vercel: import the repo and set **Root Directory** to `web`.
+Run locally: `python3 -m http.server -d web` (recording needs https or localhost). Vercel serves it from the repo root via `vercel.json`.

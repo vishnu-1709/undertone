@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>undertone · test bench</title>
+<title>undertone</title>
 <style>
   :root { --bg:#0e0f12; --card:#17191e; --line:#2a2d35; --text:#e9eaee; --dim:#9a9ea9; --accent:#7cc4ff; --good:#5fd38d; --bad:#ff7a7a; --warn:#ffc46b; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
   main { max-width:720px; margin:0 auto; padding:20px 16px 80px; }
-  h1 { font-size:22px; margin:4px 0 2px; letter-spacing:.3px; }
+  h1 { font-size:24px; margin:4px 0 2px; letter-spacing:.3px; }
   .sub { color:var(--dim); margin:0 0 18px; }
   section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
   h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); margin:0 0 10px; }
@@ -17,15 +17,22 @@
   button, select, label.file { background:#22252c; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font:inherit; cursor:pointer; }
   button:hover, label.file:hover { border-color:#4a4f5c; }
   button.primary { background:var(--accent); color:#06121d; border-color:var(--accent); font-weight:600; }
+  button.chip.on { border-color:var(--accent); color:var(--accent); }
   button.rec { border-color:var(--bad); }
   button.rec.on { background:var(--bad); color:#1a0606; }
   button:disabled { opacity:.45; cursor:default; }
   input[type=file] { display:none; }
   .status { color:var(--dim); font-size:13px; margin-top:8px; min-height:18px; }
-  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .meter { height:8px; background:#22252c; border-radius:4px; overflow:hidden; margin-top:10px; display:none; }
+  .meter > div { height:100%; width:0; background:var(--good); transition:width .05s; }
+  .grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; }
   @media (max-width:520px) { .grid { grid-template-columns:1fr; } }
   .grid label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--dim); }
-  .grid select { width:100%; }
+  .grid select, .grid input[type=range] { width:100%; }
+  .check { display:flex; gap:8px; align-items:center; font-size:14px; color:var(--text); margin-top:8px; }
+  canvas { width:100%; height:110px; display:block; background:#111318; border:1px solid var(--line); border-radius:8px; touch-action:none; cursor:grab; }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--dim); margin-top:6px; flex-wrap:wrap; }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
   .result { border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
   .result .title { font-weight:600; margin-bottom:8px; }
   .metrics { display:grid; grid-template-columns:repeat(2, 1fr); gap:4px 14px; font-size:13px; margin:10px 0 2px; }
@@ -34,42 +41,61 @@
   .sim { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:13px; color:var(--dim); margin-top:8px; }
   .sim input { width:110px; }
   .hint { font-size:13px; color:var(--dim); margin:8px 0 0; }
-  code { background:#22252c; padding:1px 5px; border-radius:4px; font-size:12px; }
+  details summary { cursor:pointer; }
 </style>
 </head>
 <body>
 <main>
-  <h1>undertone · test bench</h1>
-  <p class="sub">Speaker hears the cover. Earphones hear your voice too. Build a file, then compare.</p>
+  <h1>undertone</h1>
+  <p class="sub">A song on the speaker. Your voice in their earphones.</p>
 
   <section>
-    <h2>1 · Voice</h2>
+    <h2>1 · Your secret message</h2>
     <div class="row">
       <button id="recBtn" class="rec">● Record</button>
-      <label class="file">Upload voice<input id="voiceFile" type="file" accept="audio/*"></label>
-      <button id="demoVoiceBtn">Use test voice</button>
-      <button id="playVoiceBtn" disabled>▶ Play voice</button>
+      <label class="file">Upload voice<input id="voiceFile" type="file" accept="audio/*,video/*"></label>
+      <button id="demoVoiceBtn">Test voice</button>
+      <button id="playVoiceBtn" disabled>▶ Hear it</button>
     </div>
+    <div id="meter" class="meter"><div></div></div>
+    <label class="check"><input id="cleanup" type="checkbox" checked> Clean up my voice (remove background noise, even out loud and soft words)</label>
     <div id="voiceStatus" class="status">Speak softly in your normal voice, close to the mic.</div>
   </section>
 
   <section>
-    <h2>2 · Cover</h2>
+    <h2>2 · Background</h2>
     <div class="row">
-      <button id="rainBtn">Use built-in rain</button>
-      <label class="file">Upload song<input id="coverFile" type="file" accept="audio/*"></label>
-      <button id="playCoverBtn" disabled>▶ Play cover</button>
+      <button class="chip" data-preset="lofi">Lo-fi beat</button>
+      <button class="chip" data-preset="upbeat">Upbeat</button>
+      <button class="chip" data-preset="rain">Rain</button>
+      <label class="file">Upload song, podcast or video<input id="coverFile" type="file" accept="audio/*,video/*"></label>
+      <button id="playCoverBtn" disabled>▶ Hear it</button>
     </div>
-    <div id="coverStatus" class="status">Instrumental or dense music works best.</div>
+    <div id="coverStatus" class="status">Busy music with a steady beat hides your voice best. Any audio works.</div>
   </section>
 
   <section>
-    <h2>3 · Make it</h2>
+    <h2>3 · Place your voice</h2>
+    <canvas id="timeline"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--good)"></i>hidden on speakers</span>
+      <span><i style="background:var(--warn)"></i>may be faintly heard on two-speaker phones</span>
+      <span><i style="background:var(--bad)"></i>song too quiet here</span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="suggestBtn" disabled>✨ Suggest best spot</button>
+      <span id="placeStatus" class="status" style="margin:0">Drag your voice onto a loud part of the song.</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · Make it</h2>
+    <p class="hint" style="margin:0 0 10px">On earphones: song in the left ear, your voice alone in the right ear. On speakers: just the song.</p>
     <div class="grid">
       <label>Secret voice loudness
         <select id="level">
-          <option value="-8" selected>Soft (best hidden)</option>
-          <option value="-5">Normal</option>
+          <option value="-8">Soft (best hidden)</option>
+          <option value="-5" selected>Normal</option>
           <option value="-2">Loud (clearest)</option>
         </select>
       </label>
@@ -77,13 +103,6 @@
     <details class="hint" style="margin-top:10px">
       <summary>Advanced</summary>
       <div class="grid" style="margin-top:8px">
-        <label>Mode
-          <select id="mode">
-            <option value="oneear" selected>One-ear · right ear hears only the voice</option>
-            <option value="classic">Classic · cover in both ears</option>
-            <option value="perslice">Per-slice · cover steps aside for the voice</option>
-          </select>
-        </label>
         <label>Voice filter (lower = less leak, more muffled)
           <select id="lowpass">
             <option value="0">None</option>
@@ -92,13 +111,19 @@
             <option value="800">0.8 kHz</option>
           </select>
         </label>
-        <label>Quiet-part protection (lift quiet parts, voice follows song)
+        <label>Quiet-part protection
           <select id="protect">
-            <option value="1" selected>On</option>
+            <option value="1" selected>On (lift quiet parts, voice follows song)</option>
             <option value="0">Off</option>
           </select>
         </label>
-        <label>Leak masking (cover swells when you speak)
+        <label>Fill silence with soft hiss
+          <select id="fill">
+            <option value="0" selected>Off</option>
+            <option value="1">On</option>
+          </select>
+        </label>
+        <label>Leak masking (song swells when you speak)
           <select id="mask">
             <option value="0">Off</option>
             <option value="0.5">Light</option>
@@ -107,7 +132,6 @@
           </select>
         </label>
       </div>
-      <div class="row" style="margin-top:8px"><button id="renderAllBtn" disabled>Build all 3 modes to compare</button></div>
     </details>
     <div class="row" style="margin-top:12px">
       <button id="renderBtn" class="primary" disabled>Make file</button>
@@ -116,13 +140,14 @@
   </section>
 
   <section>
-    <h2>4 · Listen &amp; send</h2>
-    <p class="hint"><b>▶ Play</b> plays the real file: with earphones you hear the secret voice. <b>Hear it like a speaker</b> previews what people around you would hear (rain only), even if you're wearing earphones. <b>Download</b> gives you the file to send; it works on its own, no website needed.</p>
+    <h2>5 · Listen &amp; send</h2>
+    <p class="hint"><b>▶ Play</b> plays the real file: with earphones you hear the secret voice. <b>Hear it like a speaker</b> previews what people around you hear, even if you're wearing earphones. <b>Download</b> gives you the file to send; it works on its own.</p>
     <div id="results"></div>
   </section>
 </main>
 
 <script>
+
 "use strict";
 const SR = 48000;
 const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SR });
@@ -171,7 +196,8 @@ function activeRms(x, frame = 960, floorDb = -40) {
   const r = [];
   for (let i = 0; i + frame <= x.length; i += frame) r.push(rms(x.subarray(i, i + frame)));
   if (!r.length) return rms(x);
-  const max = Math.max(...r), keep = r.filter(v => v > max * Math.pow(10, floorDb / 20));
+  let max = 0; for (const v of r) if (v > max) max = v;
+  const keep = r.filter(v => v > max * Math.pow(10, floorDb / 20));
   return Math.sqrt(keep.reduce((a, v) => a + v * v, 0) / keep.length);
 }
 function biquad(x, type, f, Q) {
@@ -272,7 +298,7 @@ function perslice(c, v, strength = 4) {
   return [left, right];
 }
 
-// ---------------------------------------------------------------- render
+// ------------------------------------------------------- song helpers
 // Dynamic masking: while the voice speaks, add extra cover in the voice's
 // frequency band so any leak from two spaced speakers gets buried.
 function maskCover(c, v, amount) {
@@ -335,119 +361,359 @@ function voiceFollow(v, c, maxDropDb = 6) {
   for (let i = 0; i < v.length; i++) { const t = Math.max(lo, Math.min(1, env[i] / ref)); g = k * g + (1 - k) * t; v[i] *= g; }
   return v;
 }
-function render(voiceIn, coverIn, mode, levelDb, lowpass, mask = 1, protect = true) {
-  let v = butter4(voiceIn, "hp", 120);
+
+// ------------------------------------------------------------ voice cleanup
+// Spectral noise gate: estimate the noise floor per frequency from the quietest
+// frames, then turn down anything near that floor.
+function denoise(x) {
+  const N = 1024, H = 256, B = N / 2 + 1, len = x.length;
+  const win = new Float64Array(N).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N));
+  const frames = Math.ceil((len + N) / H), specs = [], mags = [];
+  for (let f = 0; f < frames; f++) {
+    const re = new Float64Array(N), im = new Float64Array(N), off = f * H - N;
+    for (let i = 0; i < N; i++) { const k = off + i; re[i] = k >= 0 && k < len ? x[k] * win[i] : 0; }
+    fft(re, im, false);
+    const m = new Float64Array(B); for (let k = 0; k < B; k++) m[k] = Math.hypot(re[k], im[k]);
+    specs.push([re, im]); mags.push(m);
+  }
+  const noise = new Float64Array(B), col = new Float64Array(frames);
+  for (let k = 0; k < B; k++) {
+    for (let f = 0; f < frames; f++) col[f] = mags[f][k];
+    const s = Float64Array.from(col).sort(); noise[k] = s[Math.floor(frames * 0.15)];
+  }
+  const out = new Float64Array(len + 2 * N), wsum = new Float64Array(len + 2 * N);
+  let prev = new Float64Array(B).fill(1);
+  for (let f = 0; f < frames; f++) {
+    const [re, im] = specs[f], m = mags[f], g = new Float64Array(B);
+    for (let k = 0; k < B; k++) { const raw = Math.max(0.1, 1 - 2 * noise[k] / (m[k] + 1e-12)); g[k] = 0.5 * raw + 0.5 * prev[k]; }
+    prev = g;
+    for (let k = 0; k < B; k++) { re[k] *= g[k]; im[k] *= g[k]; if (k > 0 && k < N / 2) { re[N - k] = re[k]; im[N - k] = -im[k]; } }
+    fft(re, im, true);
+    const off = f * H;
+    for (let i = 0; i < N; i++) { out[off + i] += re[i] * win[i]; wsum[off + i] += win[i] * win[i]; }
+  }
+  const y = new Float64Array(len);
+  for (let i = 0; i < len; i++) { const w = wsum[i + N]; y[i] = w > 1e-8 ? out[i + N] / w : 0; }
+  return y;
+}
+// Even out loud and soft words (gentle leveling), never boosting silence.
+function levelVoice(x) {
+  const env = windowRms(x, 0.05), ref = activeRms(x), k = Math.exp(-1 / (0.03 * SR)), y = new Float64Array(x.length);
+  let g = 1;
+  for (let i = 0; i < x.length; i++) {
+    const t = env[i] > ref * 0.05 ? Math.max(0.6, Math.min(2.5, Math.sqrt(ref / (env[i] + 1e-12)))) : 1;
+    g = k * g + (1 - k) * t; y[i] = x[i] * g;
+  }
+  return y;
+}
+function trimSilence(x, padS = 0.15) {
+  const env = windowRms(x, 0.05), th = peak(env) * 0.03;
+  let a = 0, b = x.length - 1;
+  while (a < b && env[a] < th) a++;
+  while (b > a && env[b] < th) b--;
+  const pad = Math.round(padS * SR);
+  return x.slice(Math.max(0, a - pad), Math.min(x.length, b + pad));
+}
+function processVoice(raw, cleanup, lowpass) {
+  let v = butter4(raw, "hp", 120);
+  if (cleanup) v = levelVoice(denoise(v));
+  v = trimSilence(v);
   if (lowpass) v = butter4(v, "lp", lowpass);
-  const lead = SR * 1.5, tail = SR * 1.5, n = lead + v.length + tail;
-  let c = fitLength(coverIn, n);
-  const cp = peak(c); c = c.map(x => x / (cp + 1e-12) * 0.5); // cover peak -6 dBFS
-  if (protect) c = autoFill(compressCover(c));
-  const vf = new Float64Array(n); vf.set(v, lead);
-  const g = activeRms(c) * Math.pow(10, levelDb / 20) / (activeRms(v) + 1e-12);
-  for (let i = 0; i < n; i++) vf[i] *= g;
-  if (protect) voiceFollow(vf, c);
-  if (mask > 0) c = maskCover(c, vf, mask);
-  fade(c); fade(vf);
-  let L, R;
-  if (mode === "classic") { L = c.map((x, i) => x + vf[i]); R = c.map((x, i) => x - vf[i]); }
-  else if (mode === "oneear") { L = c.map((x, i) => 2 * x + vf[i]); R = vf.map(x => -x); }
-  else [L, R] = perslice(c, vf);
-  const k = 0.7079 / Math.max(peak(L), peak(R), 1e-12); // -3 dBFS
-  for (let i = 0; i < n; i++) { L[i] *= k; R[i] *= k; c[i] *= k; vf[i] *= k; }
-  return { L, R, C: c, V: vf };
+  const p = peak(v); return v.map(s => s / (p + 1e-12) * 0.9);
 }
 
-// two spaced speakers: right speaker quieter (gain) and further away (delay)
+// ----------------------------------------------------------------- presets
+function synth(seconds, bpm, pattern) {
+  const n = Math.round(seconds * SR), x = new Float64Array(n), beat = 60 / bpm;
+  const add = (t, f) => { const s = Math.round(t * SR); for (let i = 0; s + i < n && i < SR; i++) { const v = f(i / SR); if (v === null) break; x[s + i] += v; } };
+  const kick = t => add(t, u => u > 0.35 ? null : 0.9 * Math.sin(2 * Math.PI * (50 * u + 60 * (1 - Math.exp(-u * 25)) / 25 * 25 * 0.04 + 45 * u)) * Math.exp(-u * 9));
+  const snare = t => add(t, u => u > 0.2 ? null : (Math.random() * 2 - 1) * 0.35 * Math.exp(-u * 22) + 0.15 * Math.sin(2 * Math.PI * 190 * u) * Math.exp(-u * 30));
+  const hat = (t, a = 0.08) => add(t, u => u > 0.05 ? null : (Math.random() * 2 - 1) * a * Math.exp(-u * 90));
+  const note = (t, f, dur, a, harm = 4) => add(t, u => u > dur ? null : a * Math.min(1, u * 30) * Math.min(1, (dur - u) * 8) * [...Array(harm)].reduce((s, _, k) => s + Math.sin(2 * Math.PI * f * (k + 1) * u) / (k + 1), 0));
+  pattern({ kick, snare, hat, note, beat, bars: Math.floor(seconds / (4 * beat)), bed: a => { let b = 0; for (let i = 0; i < n; i++) { b = 0.97 * b + 0.03 * (Math.random() * 2 - 1); x[i] += a * b * 6 + (Math.random() < 0.0004 ? (Math.random() - 0.5) * a * 8 : 0); } } });
+  const p = peak(x); return x.map(s => s / (p + 1e-12) * 0.8);
+}
+const CHORDS = [[220, 261.6, 329.6, 392], [174.6, 220, 261.6, 329.6], [130.8, 164.8, 196, 246.9], [196, 246.9, 293.7, 349.2]];
+const PRESETS = {
+  lofi: () => synth(32, 80, ({ kick, snare, hat, note, beat, bars, bed }) => {
+    bed(0.05);
+    for (let b = 0; b < bars; b++) {
+      const t0 = b * 4 * beat, ch = CHORDS[b % 4];
+      ch.forEach(f => note(t0, f, 4 * beat * 0.98, 0.13, 4));
+      note(t0, ch[0] / 2, 2 * beat, 0.28, 2); note(t0 + 2 * beat, ch[0] / 2, 2 * beat, 0.24, 2);
+      kick(t0); kick(t0 + 2.5 * beat); snare(t0 + beat); snare(t0 + 3 * beat);
+      for (let h = 0; h < 8; h++) hat(t0 + h * beat / 2, h % 2 ? 0.05 : 0.08);
+    }
+  }),
+  upbeat: () => synth(32, 112, ({ kick, snare, hat, note, beat, bars }) => {
+    for (let b = 0; b < bars; b++) {
+      const t0 = b * 4 * beat, ch = CHORDS[b % 4];
+      for (let q = 0; q < 4; q++) { kick(t0 + q * beat); ch.forEach(f => note(t0 + q * beat + beat / 2, f * 2, beat * 0.4, 0.04, 3)); }
+      snare(t0 + beat); snare(t0 + 3 * beat);
+      for (let e = 0; e < 8; e++) note(t0 + e * beat / 2, ch[0] / 2, beat * 0.45, 0.22, 2);
+      for (let h = 0; h < 16; h++) hat(t0 + h * beat / 4, h % 4 === 2 ? 0.09 : 0.05);
+    }
+  }),
+  rain: () => {
+    const n = SR * 30, x = new Float64Array(n);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < n; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
+      b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
+      x[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
+    }
+    return x;
+  },
+};
+
+// ------------------------------------------------------------------ state
+const FR = 4800;                 // timeline frame: 100 ms
+const LEAD = SR * 2, TAIL = SR * 2;
+const SIM_DELAY = 8, SIM_GAIN = 0.7;
+const S = { voiceRaw: null, coverRaw: null, coverName: "", vBase: null, vScaled: null, cover: null, cRef: 1,
+            vF: null, cF: null, kV: 1, off: 0, voiceKey: "" };
+
+function frames(env) { const n = Math.ceil(env.length / FR), f = new Float64Array(n); for (let i = 0; i < n; i++) f[i] = env[Math.min(env.length - 1, i * FR + FR / 2)]; return f; }
+const protectOn = () => $("protect").value === "1";
+
+function prepCover() {
+  if (!S.coverRaw) return;
+  const vLen = S.vBase ? S.vBase.length : 0;
+  let c = fitLength(S.coverRaw, Math.max(S.coverRaw.length, vLen + LEAD + TAIL));
+  const p = peak(c); c = c.map(x => x / (p + 1e-12) * 0.5);
+  if (protectOn()) c = compressCover(c);
+  S.cover = c;
+  const env = windowRms(c); S.cF = frames(env); S.cRef = loudRef(env);
+}
+function prepVoice() {
+  if (!S.voiceRaw) return;
+  const key = `${$("cleanup").checked}|${$("lowpass").value}|${S.voiceRaw.length}`;
+  if (key !== S.voiceKey) { S.vBase = processVoice(S.voiceRaw, $("cleanup").checked, +$("lowpass").value); S.voiceKey = key; }
+}
+function prepLevel() {
+  if (!S.vBase || !S.cover) return;
+  const g = activeRms(S.cover) * Math.pow(10, +$("level").value / 20) / (activeRms(S.vBase) + 1e-12);
+  S.vScaled = S.vBase.map(x => x * g);
+  S.vF = frames(windowRms(S.vScaled, 0.1));
+  const twin = twoSpeaker(S.vScaled, S.vScaled.map(x => -x), SIM_DELAY, SIM_GAIN);
+  S.kV = rms(twin) / (rms(S.vScaled) + 1e-12);
+  clampOff();
+}
+function refresh(all = true) {
+  if (all) { prepVoice(); prepCover(); }
+  prepLevel(); draw(); updatePlaceStatus();
+  const ok = S.vScaled && S.cover;
+  $("renderBtn").disabled = !ok; $("suggestBtn").disabled = !ok;
+}
+function clampOff() {
+  if (!S.cover || !S.vScaled) return;
+  const max = Math.max(0, S.cover.length - S.vScaled.length);
+  S.off = Math.max(0, Math.min(max, S.off));
+}
+
+// Predicted voice level on a two-speaker phone at each 100 ms of the message.
+function predictedLeak(offSamples) {
+  if (!S.vF || !S.cF) return [];
+  const o = Math.round(offSamples / FR), out = [];
+  for (let i = 0; i < S.vF.length; i++) {
+    const c = S.cF[Math.min(S.cF.length - 1, o + i)] + 1e-9;
+    const follow = protectOn() ? Math.max(0.5, Math.min(1, c / S.cRef)) : 1;
+    out.push(S.vF[i] < 1e-6 ? -99 : db(S.kV * S.vF[i] * follow / c));
+  }
+  return out;
+}
+const leakColor = d => d < -25 ? "#5fd38d" : d < -15 ? "#ffc46b" : "#ff7a7a";
+function suggest() {
+  if (!S.vF || !S.cF) return;
+  const vf = S.vF.length, n = Math.max(1, S.cF.length - vf + 1);
+  let best = 0, bestScore = Infinity;
+  for (let o = 0; o < n; o++) {
+    let worst = -99, sum = 0;
+    for (let i = 0; i < vf; i++) {
+      if (S.vF[i] < 1e-6) continue;
+      const c = S.cF[o + i] + 1e-9, follow = protectOn() ? Math.max(0.5, Math.min(1, c / S.cRef)) : 1;
+      const d = db(S.kV * S.vF[i] * follow / c); worst = Math.max(worst, d); sum += Math.max(d, -40);
+    }
+    const score = worst + sum / vf * 0.2;
+    if (score < bestScore - 0.01) { bestScore = score; best = o; }
+  }
+  S.off = best * FR; clampOff(); draw(); updatePlaceStatus();
+}
+function updatePlaceStatus() {
+  const el = $("placeStatus");
+  if (!S.voiceRaw || !S.coverRaw) { el.textContent = !S.voiceRaw ? "Record your message first." : "Pick a background."; return; }
+  const leak = predictedLeak(S.off), worst = leak.reduce((a, b) => Math.max(a, b), -99);
+  const t = (S.off / SR).toFixed(1);
+  el.innerHTML = worst < -25 ? `<span class="good">Starts at ${t} s · looks well hidden ✓</span>`
+    : worst < -15 ? `<span class="warn">Starts at ${t} s · a few spots may be faintly heard on two-speaker phones</span>`
+    : `<span class="bad">Starts at ${t} s · the song is too quiet under part of your message. Try ✨ Suggest.</span>`;
+}
+
+// ---------------------------------------------------------------- timeline
+const cv = $("timeline"), g2 = cv.getContext("2d");
+function draw() {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr; g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g2.clearRect(0, 0, w, h);
+  g2.font = "12px system-ui"; g2.fillStyle = "#9a9ea9";
+  if (!S.cover) { g2.fillText("Pick a background to see it here", 12, h / 2); return; }
+  const n = S.cF.length, mid = h / 2 - 8, bw = w / n;
+  g2.fillStyle = "#3a3f4b";
+  for (let i = 0; i < n; i++) {
+    const d = db(S.cF[i] / S.cRef), a = Math.max(0, Math.min(1, (d + 40) / 43)) * (mid - 6);
+    g2.fillRect(i * bw, mid - a, Math.max(1, bw - 0.5), 2 * a);
+  }
+  const total = S.cover.length;
+  g2.fillStyle = "#9a9ea9";
+  for (let s = 0; s <= total / SR; s += total / SR > 120 ? 30 : total / SR > 40 ? 10 : 5) {
+    const x = s * SR / total * w; g2.fillRect(x, h - 14, 1, 4); g2.fillText(`${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`, x + 3, h - 3);
+  }
+  if (!S.vScaled) return;
+  const x0 = S.off / total * w, x1 = (S.off + S.vScaled.length) / total * w;
+  g2.fillStyle = "rgba(124,196,255,0.18)"; g2.fillRect(x0, 4, x1 - x0, mid * 2 - 4);
+  g2.strokeStyle = "#7cc4ff"; g2.lineWidth = 2; g2.strokeRect(x0, 4, x1 - x0, mid * 2 - 4);
+  const leak = predictedLeak(S.off), fw = (x1 - x0) / leak.length;
+  leak.forEach((d, i) => { if (d <= -99) return; g2.fillStyle = leakColor(d); g2.fillRect(x0 + i * fw, mid * 2 + 2, Math.max(1, fw), 6); });
+  g2.fillStyle = "#e9eaee"; g2.fillText("your voice", x0 + 6, 18);
+}
+let drag = null;
+cv.addEventListener("pointerdown", e => {
+  if (!S.vScaled || !S.cover) return;
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * S.cover.length;
+  if (x >= S.off && x <= S.off + S.vScaled.length) drag = x - S.off;
+  else { drag = S.vScaled.length / 2; S.off = x - drag; clampOff(); draw(); updatePlaceStatus(); }
+  cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing";
+});
+cv.addEventListener("pointermove", e => {
+  if (drag === null) return;
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * S.cover.length;
+  S.off = x - drag; clampOff(); draw(); updatePlaceStatus();
+});
+cv.addEventListener("pointerup", () => { drag = null; cv.style.cursor = "grab"; });
+window.addEventListener("resize", draw);
+
+// ------------------------------------------------------------------ render
 function twoSpeaker(L, R, delay, gain) {
   const y = new Float64Array(L.length);
   for (let i = 0; i < L.length; i++) y[i] = (L[i] + gain * (i >= delay ? R[i - delay] : 0)) / 2;
   return y;
 }
-function shareDb(x, part) { // level of `part` in x vs everything else
-  const rest = x.map((s, i) => s - part[i]); return db(rms(part)) - db(rms(rest));
+function shareDb(x, part) { const rest = x.map((s, i) => s - part[i]); return db(rms(part)) - db(rms(rest)); }
+// One-ear: L = 2C + V, R = −V. A speaker plays (L+R)/2 = C, so the voice cancels.
+function render() {
+  const s = Math.max(0, S.off - LEAD), e = Math.min(S.cover.length, S.off + S.vScaled.length + TAIL), n = e - s;
+  let c = S.cover.slice(s, e);
+  if ($("fill").value === "1") c = autoFill(c);
+  const vf = new Float64Array(n); vf.set(S.vScaled, S.off - s);
+  if (protectOn()) voiceFollow(vf, c);
+  const mask = +$("mask").value; if (mask > 0) c = maskCover(c, vf, mask);
+  fade(c, Math.round(SR * 0.3)); fade(vf);
+  const L = c.map((x, i) => 2 * x + vf[i]), R = vf.map(x => -x);
+  const k = 0.7079 / Math.max(peak(L), peak(R), 1e-12);
+  for (let i = 0; i < n; i++) { L[i] *= k; R[i] *= k; c[i] *= k; vf[i] *= k; }
+  return { L, R, C: c, V: vf };
 }
 function metrics(r, delay, gain) {
-  const n = r.L.length, mono = new Float64Array(n), ideal = new Float64Array(n);
+  const n = r.L.length, mono = new Float64Array(n);
   for (let i = 0; i < n; i++) mono[i] = (r.L[i] + r.R[i]) / 2;
   const leakMono = db(rms(mono.map((x, i) => x - r.C[i]))) - db(rms(r.C));
-  // In every mode the voice is +V on the left and −V on the right.
-  const sim = twoSpeaker(r.L, r.R, delay, gain);
-  const voiceSim = twoSpeaker(r.V, r.V.map(x => -x), delay, gain);
-  const leakSim = shareDb(sim, voiceSim);
-  const vL = shareDb(r.L, r.V), vR = shareDb(r.R, r.V.map(x => -x));
-  return { leakMono, leakSim, vL, vR, sim };
+  const sim = twoSpeaker(r.L, r.R, delay, gain), voiceSim = twoSpeaker(r.V, r.V.map(x => -x), delay, gain);
+  return { leakMono, leakSim: shareDb(sim, voiceSim), vL: shareDb(r.L, r.V), sim };
 }
 
 // -------------------------------------------------------------------- ui
 const fmt = d => d < -120 ? "< −120 dB" : (d > 60 ? "voice only" : `${d.toFixed(1)} dB`);
 const cls = (d, goodBelow) => d <= goodBelow ? "good" : (d <= goodBelow + 15 ? "warn" : "bad");
-function ready() { const ok = voice && cover; $("renderBtn").disabled = !ok; $("renderAllBtn").disabled = !ok; }
+let meterRaf = null;
+function startMeter(stream) {
+  const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser(); an.fftSize = 1024; src.connect(an);
+  const buf = new Float32Array(an.fftSize), bar = $("meter").firstElementChild, t0 = performance.now();
+  let quiet = 0, total = 0;
+  $("meter").style.display = "block";
+  const tick = () => {
+    an.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; const r = Math.sqrt(s / buf.length);
+    bar.style.width = `${Math.min(100, r * 500)}%`; bar.style.background = r > 0.3 ? "var(--bad)" : "var(--good)";
+    if (performance.now() - t0 > 1500) { total++; if (r < 0.01) quiet++; }
+    $("voiceStatus").textContent = total > 30 && quiet / total > 0.85 ? "Too quiet: move closer to the mic." : "Recording… speak softly, close to the mic.";
+    meterRaf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+function stopMeter() { cancelAnimationFrame(meterRaf); $("meter").style.display = "none"; }
+function voiceLoaded(label) {
+  $("voiceStatus").textContent = "Processing…";
+  setTimeout(() => {
+    S.voiceKey = ""; refresh();
+    $("voiceStatus").textContent = `${label} · ${(S.vBase.length / SR).toFixed(1)} s after trimming`;
+    $("playVoiceBtn").disabled = false;
+    if (S.cover) suggest();
+  }, 20);
+}
+function coverLoaded(label) {
+  $("coverStatus").textContent = "Preparing…";
+  setTimeout(() => {
+    S.coverName = label; refresh();
+    $("coverStatus").textContent = `${label} · ${(S.coverRaw.length / SR).toFixed(1)} s`;
+    $("playCoverBtn").disabled = false;
+    if (S.vScaled) suggest();
+  }, 20);
+}
 
 $("recBtn").onclick = async () => {
   if (recorder && recorder.state === "recording") { recorder.stop(); return; }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
+    await ctx.resume();
     chunks = []; recorder = new MediaRecorder(stream);
     recorder.ondataavailable = e => chunks.push(e.data);
     recorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
+      stopMeter(); stream.getTracks().forEach(t => t.stop());
       $("recBtn").classList.remove("on"); $("recBtn").textContent = "● Record";
-      const blob = new Blob(chunks, { type: recorder.mimeType });
-      voice = await decode(await blob.arrayBuffer());
-      $("voiceStatus").textContent = `Recorded ${(voice.length / SR).toFixed(1)} s`;
-      $("playVoiceBtn").disabled = false; ready();
+      S.voiceRaw = await decode(await new Blob(chunks, { type: recorder.mimeType }).arrayBuffer());
+      voiceLoaded("Recorded");
     };
-    recorder.start(); $("recBtn").classList.add("on"); $("recBtn").textContent = "■ Stop";
-    $("voiceStatus").textContent = "Recording… speak softly, close to the mic.";
+    recorder.start(); startMeter(stream);
+    $("recBtn").classList.add("on"); $("recBtn").textContent = "■ Stop";
   } catch (e) { $("voiceStatus").textContent = "Mic blocked: allow the microphone, or upload a file. (Needs https.)"; }
 };
 $("voiceFile").onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   $("voiceStatus").textContent = "Decoding…";
-  voice = await decode(await f.arrayBuffer());
-  $("voiceStatus").textContent = `${f.name} · ${(voice.length / SR).toFixed(1)} s`;
-  $("playVoiceBtn").disabled = false; ready();
+  try { S.voiceRaw = await decode(await f.arrayBuffer()); voiceLoaded(f.name); }
+  catch (err) { $("voiceStatus").textContent = "Couldn't read that file. Try mp3, m4a, wav or mp4."; }
 };
-$("demoVoiceBtn").onclick = () => { // speech-like test tone
-  const n = SR * 4; voice = new Float64Array(n); let ph = 0;
+$("demoVoiceBtn").onclick = () => {
+  const n = SR * 5, v = new Float64Array(n); let ph = 0;
   for (let i = 0; i < n; i++) {
     const t = i / SR, f0 = 140 + 30 * Math.sin(2 * Math.PI * 0.7 * t); ph += 2 * Math.PI * f0 / SR;
     let s = 0; for (let k = 1; k < 20; k++) s += Math.sin(k * ph) / k;
-    voice[i] = s * Math.max(0, Math.sin(2 * Math.PI * 4 * t)) ** 2;
+    v[i] = s * Math.max(0, Math.sin(2 * Math.PI * 4 * t)) ** 2;
   }
-  $("voiceStatus").textContent = "Test voice (buzzy syllables), 4 s";
-  $("playVoiceBtn").disabled = false; ready();
+  S.voiceRaw = v; voiceLoaded("Test voice (buzzy syllables)");
 };
-$("rainBtn").onclick = () => { // pink-noise rain + soft chord
-  const n = SR * 20; cover = new Float64Array(n);
-  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-  for (let i = 0; i < n; i++) {
-    const w = Math.random() * 2 - 1;
-    b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
-    b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
-    const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
-    const t = i / SR;
-    cover[i] = pink + 0.04 * (Math.sin(2 * Math.PI * 220 * t) + Math.sin(2 * Math.PI * 277.2 * t) + Math.sin(2 * Math.PI * 329.6 * t));
-  }
-  $("coverStatus").textContent = "Built-in rain, 20 s (loops)";
-  $("playCoverBtn").disabled = false; ready();
-};
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("[data-preset]").forEach(x => x.classList.toggle("on", x === b));
+  S.coverRaw = PRESETS[b.dataset.preset](); coverLoaded(b.textContent);
+});
 $("coverFile").onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
+  document.querySelectorAll("[data-preset]").forEach(x => x.classList.remove("on"));
   $("coverStatus").textContent = "Decoding…";
-  cover = await decode(await f.arrayBuffer());
-  $("coverStatus").textContent = `${f.name} · ${(cover.length / SR).toFixed(1)} s (converted to mono)`;
-  $("playCoverBtn").disabled = false; ready();
+  try { S.coverRaw = await decode(await f.arrayBuffer()); coverLoaded(f.name); }
+  catch (err) { $("coverStatus").textContent = "Couldn't read that file. Try mp3, m4a, wav or mp4."; }
 };
-$("playVoiceBtn").onclick = () => play([voice]);
-$("playCoverBtn").onclick = () => play([cover.subarray(0, SR * 10)]);
+$("playVoiceBtn").onclick = () => play([S.vBase]);
+$("playCoverBtn").onclick = () => play([S.coverRaw.subarray(0, SR * 15)]);
+$("suggestBtn").onclick = suggest;
+["cleanup", "lowpass", "protect"].forEach(id => $(id).addEventListener("change", () => refresh()));
+$("level").addEventListener("change", () => refresh(false));
 
-function addResult(mode, level, lp) {
-  const r = render(voice, cover, mode, level, lp, +$("mask").value, $("protect").value === "1");
-  const box = document.createElement("div"); box.className = "result";
-  const name = `undertone ${mode} ${{ "-8": "soft", "-5": "normal", "-2": "loud" }[level] || "v" + -level}.wav`;
+function addResult() {
+  const r = render(), box = document.createElement("div"); box.className = "result";
+  const label = { "-8": "soft", "-5": "normal", "-2": "loud" }[$("level").value];
   box.innerHTML = `
-    <div class="title">${{ classic: "Classic", oneear: "One-ear", perslice: "Per-slice" }[mode]} · ${{ "-8": "soft", "-5": "normal", "-2": "loud" }[level] || level + " dB"} voice · filter ${lp ? lp + " Hz" : "none"}</div>
+    <div class="title">${S.coverName} · ${label} voice · from ${(S.off / SR).toFixed(1)} s</div>
     <div class="row">
       <button data-a="ear" class="primary">▶ Play (wear earphones)</button>
       <button data-a="spk">Hear it like a speaker</button>
@@ -464,7 +730,7 @@ function addResult(mode, level, lp) {
         · far speaker <input data-s="gain" type="range" min="40" max="100" value="70"> <span data-o="gain"></span></div>
       <div class="metrics"></div>
     </details>`;
-  const $$ = s => box.querySelector(s);
+  const $$ = q => box.querySelector(q);
   let m;
   const update = () => {
     const d = +$$('[data-s="delay"]').value, g = +$$('[data-s="gain"]').value / 100;
@@ -473,9 +739,9 @@ function addResult(mode, level, lp) {
     m = metrics(r, d, g);
     $$(".metrics").innerHTML = `
       <span>Voice on 1 speaker</span><span class="${cls(m.leakMono, -40)}">${fmt(m.leakMono)}</span>
-      <span>Voice on 2-speaker sim</span><span class="${cls(m.leakSim, -40)}">${fmt(m.leakSim)}</span>
+      <span>Voice on 2-speaker sim</span><span class="${cls(m.leakSim, -25)}">${fmt(m.leakSim)}</span>
       <span>Voice in left ear</span><span>${fmt(m.vL)}</span>
-      <span>Voice in right ear</span><span>${fmt(m.vR)}</span>`;
+      <span>Voice in right ear</span><span>voice only</span>`;
   };
   box.querySelectorAll("input[type=range]").forEach(i => i.oninput = update);
   update();
@@ -487,21 +753,15 @@ function addResult(mode, level, lp) {
     else if (a === "L") play([r.L, new Float64Array(n)]);
     else if (a === "R") play([new Float64Array(n), r.R]);
     else if (a === "stop") stop();
-    else if (a === "dl") { const u = URL.createObjectURL(wavBlob(r.L, r.R)); const l = document.createElement("a"); l.href = u; l.download = name; l.click(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
+    else if (a === "dl") { const u = URL.createObjectURL(wavBlob(r.L, r.R)); const l = document.createElement("a"); l.href = u; l.download = "undertone.wav"; l.click(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
   });
   $("results").prepend(box);
 }
-
-async function build(modes) {
-  $("renderStatus").textContent = "Building…";
-  await new Promise(r => setTimeout(r, 30));
-  const level = +$("level").value, lp = +$("lowpass").value;
-  const t = performance.now();
-  for (const m of modes) { addResult(m, level, lp); await new Promise(r => setTimeout(r, 10)); }
-  $("renderStatus").textContent = `Built in ${((performance.now() - t) / 1000).toFixed(1)} s`;
-}
-$("renderBtn").onclick = () => build([$("mode").value]);
-$("renderAllBtn").onclick = () => build(["perslice", "oneear", "classic"]);
+$("renderBtn").onclick = () => {
+  $("renderStatus").textContent = "Making…";
+  setTimeout(() => { const t = performance.now(); addResult(); $("renderStatus").textContent = `Done in ${((performance.now() - t) / 1000).toFixed(1)} s`; }, 20);
+};
+draw();
 </script>
 </body>
 </html>
