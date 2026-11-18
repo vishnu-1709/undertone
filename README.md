@@ -59,3 +59,17 @@ Re-run with your own voice and cover; real speech and music will move these numb
 ## Recording tips
 
 Speak softly in your normal voice, close to the mic. A real whisper has little energy below 1 kHz and gets filtered out.
+
+## Test bench website (`web/`)
+
+A single static page for trying everything in the browser, no install:
+
+1. Record or upload your voice, or use the test voice.
+2. Use the built-in rain or upload a song.
+3. Pick mode, voice level and low-pass, then **Build file** (or **Build all 3 modes**).
+4. For each result: 🔊 **Speaker** plays (L+R)/2 · 📱 **Two-speaker sim** mimics a phone with spaced speakers (adjust ear offset and far-speaker volume) · 🎧 **Earphones** plays stereo · **Left/Right only** · ⬇ **WAV** to send to real phones.
+
+Metrics shown: voice level on one speaker, on the two-speaker sim, and in each ear.
+
+Run locally: open `web/index.html` (recording needs https or localhost, e.g. `python3 -m http.server -d web`).
+Deploy on Vercel: import the repo and set **Root Directory** to `web`.

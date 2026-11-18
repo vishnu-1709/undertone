@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>undertone · test bench</title>
+<style>
+  :root { --bg:#0e0f12; --card:#17191e; --line:#2a2d35; --text:#e9eaee; --dim:#9a9ea9; --accent:#7cc4ff; --good:#5fd38d; --bad:#ff7a7a; --warn:#ffc46b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 80px; }
+  h1 { font-size:22px; margin:4px 0 2px; letter-spacing:.3px; }
+  .sub { color:var(--dim); margin:0 0 18px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); margin:0 0 10px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button, select, label.file { background:#22252c; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font:inherit; cursor:pointer; }
+  button:hover, label.file:hover { border-color:#4a4f5c; }
+  button.primary { background:var(--accent); color:#06121d; border-color:var(--accent); font-weight:600; }
+  button.rec { border-color:var(--bad); }
+  button.rec.on { background:var(--bad); color:#1a0606; }
+  button:disabled { opacity:.45; cursor:default; }
+  input[type=file] { display:none; }
+  .status { color:var(--dim); font-size:13px; margin-top:8px; min-height:18px; }
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  @media (max-width:520px) { .grid { grid-template-columns:1fr; } }
+  .grid label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--dim); }
+  .grid select { width:100%; }
+  .result { border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
+  .result .title { font-weight:600; margin-bottom:8px; }
+  .metrics { display:grid; grid-template-columns:repeat(2, 1fr); gap:4px 14px; font-size:13px; margin:10px 0 2px; }
+  .metrics span:nth-child(odd) { color:var(--dim); }
+  .good { color:var(--good); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  .sim { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:13px; color:var(--dim); margin-top:8px; }
+  .sim input { width:110px; }
+  .hint { font-size:13px; color:var(--dim); margin:8px 0 0; }
+  code { background:#22252c; padding:1px 5px; border-radius:4px; font-size:12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>undertone · test bench</h1>
+  <p class="sub">Speaker hears the cover. Earphones hear your voice too. Build a file, then compare.</p>
+
+  <section>
+    <h2>1 · Voice</h2>
+    <div class="row">
+      <button id="recBtn" class="rec">● Record</button>
+      <label class="file">Upload voice<input id="voiceFile" type="file" accept="audio/*"></label>
+      <button id="demoVoiceBtn">Use test voice</button>
+      <button id="playVoiceBtn" disabled>▶ Play voice</button>
+    </div>
+    <div id="voiceStatus" class="status">Speak softly in your normal voice, close to the mic.</div>
+  </section>
+
+  <section>
+    <h2>2 · Cover</h2>
+    <div class="row">
+      <button id="rainBtn">Use built-in rain</button>
+      <label class="file">Upload song<input id="coverFile" type="file" accept="audio/*"></label>
+      <button id="playCoverBtn" disabled>▶ Play cover</button>
+    </div>
+    <div id="coverStatus" class="status">Instrumental or dense music works best.</div>
+  </section>
+
+  <section>
+    <h2>3 · Settings</h2>
+    <div class="grid">
+      <label>Mode
+        <select id="mode">
+          <option value="classic">Classic · L=C+V, R=C−V</option>
+          <option value="oneear">One-ear · L=2C+V, R=−V</option>
+          <option value="perslice">Per-slice · cover moves away from voice</option>
+        </select>
+      </label>
+      <label>Voice level (under cover)
+        <select id="level">
+          <option value="-12">−12 dB</option>
+          <option value="-10">−10 dB</option>
+          <option value="-8" selected>−8 dB</option>
+          <option value="-6">−6 dB</option>
+          <option value="-3">−3 dB</option>
+        </select>
+      </label>
+      <label>Voice low-pass
+        <select id="lowpass">
+          <option value="0">None</option>
+          <option value="1500">1.5 kHz</option>
+          <option value="1000" selected>1.0 kHz</option>
+          <option value="800">0.8 kHz</option>
+        </select>
+      </label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="renderBtn" class="primary" disabled>Build file</button>
+      <button id="renderAllBtn" disabled>Build all 3 modes</button>
+    </div>
+    <div id="renderStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>4 · Results</h2>
+    <p class="hint">🔊 <b>Speaker</b> plays (L+R)/2, what one speaker plays. 📱 <b>Two-speaker sim</b> mimics a phone with two speakers apart. 🎧 <b>Earphones</b> plays true stereo, so wear both buds. Best final check: download and play on real phones.</p>
+    <div id="results"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const SR = 48000;
+const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SR });
+let voice = null, cover = null, current = null, recorder = null, chunks = [];
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------- audio io
+async function decode(arrayBuffer) {
+  const buf = await ctx.decodeAudioData(arrayBuffer);
+  let mono = new Float64Array(buf.length);
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < d.length; i++) mono[i] += d[i] / buf.numberOfChannels;
+  }
+  if (buf.sampleRate !== SR) mono = resample(mono, buf.sampleRate, SR);
+  return mono;
+}
+function resample(x, from, to) {
+  const n = Math.round(x.length * to / from), y = new Float64Array(n), r = from / to;
+  for (let i = 0; i < n; i++) { const p = i * r, k = Math.floor(p), f = p - k; y[i] = (x[k] || 0) * (1 - f) + (x[k + 1] || 0) * f; }
+  return y;
+}
+function stop() { if (current) { try { current.stop(); } catch (e) {} current = null; } }
+function play(chs) {
+  stop(); ctx.resume();
+  const b = ctx.createBuffer(chs.length, chs[0].length, SR);
+  chs.forEach((d, i) => b.copyToChannel(Float32Array.from(d), i));
+  const s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(); current = s;
+}
+function wavBlob(L, R) {
+  const n = L.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf);
+  const str = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  str(0, "RIFF"); v.setUint32(4, 36 + n * 4, true); str(8, "WAVE"); str(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, SR, true);
+  v.setUint32(28, SR * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, n * 4, true);
+  const q = x => Math.max(-32768, Math.min(32767, Math.round(x * 32767)));
+  for (let i = 0; i < n; i++) { v.setInt16(44 + i * 4, q(L[i]), true); v.setInt16(46 + i * 4, q(R[i]), true); }
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+// --------------------------------------------------------------- dsp utils
+const rms = x => { let s = 0; for (let i = 0; i < x.length; i++) s += x[i] * x[i]; return Math.sqrt(s / x.length + 1e-24); };
+const db = x => 20 * Math.log10(Math.max(x, 1e-12));
+const peak = x => { let m = 0; for (let i = 0; i < x.length; i++) m = Math.max(m, Math.abs(x[i])); return m; };
+function activeRms(x, frame = 960, floorDb = -40) {
+  const r = [];
+  for (let i = 0; i + frame <= x.length; i += frame) r.push(rms(x.subarray(i, i + frame)));
+  if (!r.length) return rms(x);
+  const max = Math.max(...r), keep = r.filter(v => v > max * Math.pow(10, floorDb / 20));
+  return Math.sqrt(keep.reduce((a, v) => a + v * v, 0) / keep.length);
+}
+function biquad(x, type, f, Q) {
+  const w = 2 * Math.PI * f / SR, cs = Math.cos(w), al = Math.sin(w) / (2 * Q);
+  let b0, b1, b2;
+  if (type === "lp") { b0 = (1 - cs) / 2; b1 = 1 - cs; b2 = b0; } else { b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = b0; }
+  const a0 = 1 + al, a1 = -2 * cs, a2 = 1 - al, y = new Float64Array(x.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < x.length; i++) {
+    const o = (b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+    x2 = x1; x1 = x[i]; y2 = y1; y1 = o; y[i] = o;
+  }
+  return y;
+}
+// 4th-order Butterworth, run forwards and backwards (zero phase)
+function butter4(x, type, f) {
+  const once = s => biquad(biquad(s, type, f, 0.5412), type, f, 1.3066);
+  return once(once(x).reverse()).reverse();
+}
+function fitLength(c, n, xf = 2400) {
+  if (c.length >= n) return c.slice(0, n);
+  xf = Math.min(xf, Math.floor(c.length / 4));
+  const out = new Float64Array(n); out.set(c); let pos = c.length;
+  while (pos < n) {
+    const start = pos - xf;
+    for (let i = 0; i < xf && start + i < n; i++) { const t = i / xf; out[start + i] = out[start + i] * (1 - t) + c[i] * t; }
+    for (let i = xf; i < c.length && start + i < n; i++) out[start + i] = c[i];
+    pos = start + c.length;
+  }
+  return out;
+}
+function fade(x, n = 1440) { n = Math.min(n, x.length >> 1); for (let i = 0; i < n; i++) { const g = i / n; x[i] *= g; x[x.length - 1 - i] *= g; } return x; }
+
+// ------------------------------------------------------------------ fft
+function fft(re, im, inverse) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = 2 * Math.PI / len * (inverse ? 1 : -1), wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const a = i + k, b = a + len / 2;
+        const tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+      }
+    }
+  }
+  if (inverse) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+}
+
+// Per-slice: move the cover into the left ear only where the voice is.
+function perslice(c, v, strength = 4) {
+  const N = 2048, H = 512, B = N / 2 + 1, len = c.length;
+  const win = new Float64Array(N).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N));
+  const frames = Math.ceil((len + N) / H);
+  const spec = (x, f) => {
+    const re = new Float64Array(N), im = new Float64Array(N), off = f * H - N;
+    for (let i = 0; i < N; i++) { const k = off + i; re[i] = k >= 0 && k < len ? x[k] * win[i] : 0; }
+    fft(re, im, false); return [re, im];
+  };
+  const C = [], V = [], A = [];
+  for (let f = 0; f < frames; f++) {
+    const [cr, ci] = spec(c, f), [vr, vi] = spec(v, f), a = new Float64Array(B);
+    for (let k = 0; k < B; k++) a[k] = Math.min(1, strength * Math.hypot(vr[k], vi[k]) / (Math.hypot(cr[k], ci[k]) + 1e-12));
+    C.push([cr, ci]); V.push([vr, vi]); A.push(a);
+  }
+  // smooth a over ~50 ms (5 frames) and 3 bins
+  const S = A.map(() => new Float64Array(B)), T = 2;
+  for (let f = 0; f < frames; f++) for (let k = 0; k < B; k++) {
+    let s = 0, n = 0;
+    for (let df = -T; df <= T; df++) for (let dk = -1; dk <= 1; dk++) {
+      const ff = f + df, kk = k + dk; if (ff < 0 || ff >= frames || kk < 0 || kk >= B) continue; s += A[ff][kk]; n++;
+    }
+    S[f][k] = s / n;
+  }
+  const L = new Float64Array(len + 2 * N), wsum = new Float64Array(len + 2 * N);
+  for (let f = 0; f < frames; f++) {
+    const re = new Float64Array(N), im = new Float64Array(N), [cr, ci] = C[f], [vr, vi] = V[f], a = S[f];
+    for (let k = 0; k < B; k++) {
+      re[k] = (1 + a[k]) * cr[k] + vr[k]; im[k] = (1 + a[k]) * ci[k] + vi[k];
+      if (k > 0 && k < N / 2) { re[N - k] = re[k]; im[N - k] = -im[k]; }
+    }
+    fft(re, im, true);
+    const off = f * H;
+    for (let i = 0; i < N; i++) { L[off + i] += re[i] * win[i]; wsum[off + i] += win[i] * win[i]; }
+  }
+  const left = new Float64Array(len), right = new Float64Array(len);
+  for (let i = 0; i < len; i++) {
+    const w = wsum[i + N];
+    left[i] = w > 1e-8 ? L[i + N] / w : c[i];
+    right[i] = 2 * c[i] - left[i]; // (L+R)/2 == C exactly
+  }
+  return [left, right];
+}
+
+// ---------------------------------------------------------------- render
+function render(voiceIn, coverIn, mode, levelDb, lowpass) {
+  let v = butter4(voiceIn, "hp", 120);
+  if (lowpass) v = butter4(v, "lp", lowpass);
+  const lead = SR * 1.5, tail = SR * 1.5, n = lead + v.length + tail;
+  let c = fitLength(coverIn, n);
+  const cp = peak(c); c = c.map(x => x / (cp + 1e-12) * 0.5); // cover peak -6 dBFS
+  const vf = new Float64Array(n); vf.set(v, lead);
+  const g = activeRms(c) * Math.pow(10, levelDb / 20) / (activeRms(v) + 1e-12);
+  for (let i = 0; i < n; i++) vf[i] *= g;
+  fade(c); fade(vf);
+  let L, R;
+  if (mode === "classic") { L = c.map((x, i) => x + vf[i]); R = c.map((x, i) => x - vf[i]); }
+  else if (mode === "oneear") { L = c.map((x, i) => 2 * x + vf[i]); R = vf.map(x => -x); }
+  else [L, R] = perslice(c, vf);
+  const k = 0.7079 / Math.max(peak(L), peak(R), 1e-12); // -3 dBFS
+  for (let i = 0; i < n; i++) { L[i] *= k; R[i] *= k; c[i] *= k; vf[i] *= k; }
+  return { L, R, C: c, V: vf };
+}
+
+// two spaced speakers: right speaker quieter (gain) and further away (delay)
+function twoSpeaker(L, R, delay, gain) {
+  const y = new Float64Array(L.length);
+  for (let i = 0; i < L.length; i++) y[i] = (L[i] + gain * (i >= delay ? R[i - delay] : 0)) / 2;
+  return y;
+}
+function shareDb(x, part) { // level of `part` in x vs everything else
+  const rest = x.map((s, i) => s - part[i]); return db(rms(part)) - db(rms(rest));
+}
+function metrics(r, delay, gain) {
+  const n = r.L.length, mono = new Float64Array(n), ideal = new Float64Array(n);
+  for (let i = 0; i < n; i++) mono[i] = (r.L[i] + r.R[i]) / 2;
+  const leakMono = db(rms(mono.map((x, i) => x - r.C[i]))) - db(rms(r.C));
+  // In every mode the voice is +V on the left and −V on the right.
+  const sim = twoSpeaker(r.L, r.R, delay, gain);
+  const voiceSim = twoSpeaker(r.V, r.V.map(x => -x), delay, gain);
+  const leakSim = shareDb(sim, voiceSim);
+  const vL = shareDb(r.L, r.V), vR = shareDb(r.R, r.V.map(x => -x));
+  return { leakMono, leakSim, vL, vR, sim };
+}
+
+// -------------------------------------------------------------------- ui
+const fmt = d => d < -120 ? "< −120 dB" : (d > 60 ? "voice only" : `${d.toFixed(1)} dB`);
+const cls = (d, goodBelow) => d <= goodBelow ? "good" : (d <= goodBelow + 15 ? "warn" : "bad");
+function ready() { const ok = voice && cover; $("renderBtn").disabled = !ok; $("renderAllBtn").disabled = !ok; }
+
+$("recBtn").onclick = async () => {
+  if (recorder && recorder.state === "recording") { recorder.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
+    chunks = []; recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = e => chunks.push(e.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      $("recBtn").classList.remove("on"); $("recBtn").textContent = "● Record";
+      const blob = new Blob(chunks, { type: recorder.mimeType });
+      voice = await decode(await blob.arrayBuffer());
+      $("voiceStatus").textContent = `Recorded ${(voice.length / SR).toFixed(1)} s`;
+      $("playVoiceBtn").disabled = false; ready();
+    };
+    recorder.start(); $("recBtn").classList.add("on"); $("recBtn").textContent = "■ Stop";
+    $("voiceStatus").textContent = "Recording… speak softly, close to the mic.";
+  } catch (e) { $("voiceStatus").textContent = "Mic blocked: allow the microphone, or upload a file. (Needs https.)"; }
+};
+$("voiceFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  $("voiceStatus").textContent = "Decoding…";
+  voice = await decode(await f.arrayBuffer());
+  $("voiceStatus").textContent = `${f.name} · ${(voice.length / SR).toFixed(1)} s`;
+  $("playVoiceBtn").disabled = false; ready();
+};
+$("demoVoiceBtn").onclick = () => { // speech-like test tone
+  const n = SR * 4; voice = new Float64Array(n); let ph = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / SR, f0 = 140 + 30 * Math.sin(2 * Math.PI * 0.7 * t); ph += 2 * Math.PI * f0 / SR;
+    let s = 0; for (let k = 1; k < 20; k++) s += Math.sin(k * ph) / k;
+    voice[i] = s * Math.max(0, Math.sin(2 * Math.PI * 4 * t)) ** 2;
+  }
+  $("voiceStatus").textContent = "Test voice (buzzy syllables), 4 s";
+  $("playVoiceBtn").disabled = false; ready();
+};
+$("rainBtn").onclick = () => { // pink-noise rain + soft chord
+  const n = SR * 20; cover = new Float64Array(n);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < n; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
+    b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
+    const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
+    const t = i / SR;
+    cover[i] = pink + 0.04 * (Math.sin(2 * Math.PI * 220 * t) + Math.sin(2 * Math.PI * 277.2 * t) + Math.sin(2 * Math.PI * 329.6 * t));
+  }
+  $("coverStatus").textContent = "Built-in rain, 20 s (loops)";
+  $("playCoverBtn").disabled = false; ready();
+};
+$("coverFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  $("coverStatus").textContent = "Decoding…";
+  cover = await decode(await f.arrayBuffer());
+  $("coverStatus").textContent = `${f.name} · ${(cover.length / SR).toFixed(1)} s (converted to mono)`;
+  $("playCoverBtn").disabled = false; ready();
+};
+$("playVoiceBtn").onclick = () => play([voice]);
+$("playCoverBtn").onclick = () => play([cover.subarray(0, SR * 10)]);
+
+function addResult(mode, level, lp) {
+  const r = render(voice, cover, mode, level, lp);
+  const box = document.createElement("div"); box.className = "result";
+  const name = `undertone_${mode}_v${-level}_lp${lp || "none"}.wav`;
+  box.innerHTML = `
+    <div class="title">${{ classic: "Classic", oneear: "One-ear", perslice: "Per-slice" }[mode]} · voice ${level} dB · low-pass ${lp ? lp + " Hz" : "none"}</div>
+    <div class="row">
+      <button data-a="spk">🔊 Speaker</button>
+      <button data-a="sim">📱 Two-speaker sim</button>
+      <button data-a="ear">🎧 Earphones</button>
+      <button data-a="L">Left only</button>
+      <button data-a="R">Right only</button>
+      <button data-a="stop">■</button>
+      <button data-a="dl">⬇ WAV</button>
+    </div>
+    <div class="sim">Two-speaker sim: ear offset <input data-s="delay" type="range" min="0" max="20" value="8"> <span data-o="delay"></span>
+      · far speaker <input data-s="gain" type="range" min="40" max="100" value="70"> <span data-o="gain"></span></div>
+    <div class="metrics"></div>`;
+  const $$ = s => box.querySelector(s);
+  let m;
+  const update = () => {
+    const d = +$$('[data-s="delay"]').value, g = +$$('[data-s="gain"]').value / 100;
+    $$('[data-o="delay"]').textContent = `${(d / SR * 343 * 100).toFixed(1)} cm`;
+    $$('[data-o="gain"]').textContent = `${Math.round(g * 100)}%`;
+    m = metrics(r, d, g);
+    $$(".metrics").innerHTML = `
+      <span>Voice on 1 speaker</span><span class="${cls(m.leakMono, -40)}">${fmt(m.leakMono)}</span>
+      <span>Voice on 2-speaker sim</span><span class="${cls(m.leakSim, -40)}">${fmt(m.leakSim)}</span>
+      <span>Voice in left ear</span><span>${fmt(m.vL)}</span>
+      <span>Voice in right ear</span><span>${fmt(m.vR)}</span>`;
+  };
+  box.querySelectorAll("input[type=range]").forEach(i => i.oninput = update);
+  update();
+  box.querySelectorAll("button").forEach(b => b.onclick = () => {
+    const a = b.dataset.a, n = r.L.length;
+    if (a === "spk") { const mono = new Float64Array(n); for (let i = 0; i < n; i++) mono[i] = (r.L[i] + r.R[i]) / 2; play([mono, mono]); }
+    else if (a === "sim") play([m.sim, m.sim]);
+    else if (a === "ear") play([r.L, r.R]);
+    else if (a === "L") play([r.L, new Float64Array(n)]);
+    else if (a === "R") play([new Float64Array(n), r.R]);
+    else if (a === "stop") stop();
+    else if (a === "dl") { const u = URL.createObjectURL(wavBlob(r.L, r.R)); const l = document.createElement("a"); l.href = u; l.download = name; l.click(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
+  });
+  $("results").prepend(box);
+}
+
+async function build(modes) {
+  $("renderStatus").textContent = "Building…";
+  await new Promise(r => setTimeout(r, 30));
+  const level = +$("level").value, lp = +$("lowpass").value;
+  const t = performance.now();
+  for (const m of modes) { addResult(m, level, lp); await new Promise(r => setTimeout(r, 10)); }
+  $("renderStatus").textContent = `Built in ${((performance.now() - t) / 1000).toFixed(1)} s`;
+}
+$("renderBtn").onclick = () => build([$("mode").value]);
+$("renderAllBtn").onclick = () => build(["perslice", "oneear", "classic"]);
+</script>
+</body>
+</html>
