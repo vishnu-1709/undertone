@@ -64,43 +64,46 @@
   </section>
 
   <section>
-    <h2>3 · Settings</h2>
+    <h2>3 · Make it</h2>
     <div class="grid">
-      <label>Mode
-        <select id="mode">
-          <option value="classic">Classic · L=C+V, R=C−V</option>
-          <option value="oneear">One-ear · L=2C+V, R=−V</option>
-          <option value="perslice">Per-slice · cover moves away from voice</option>
-        </select>
-      </label>
-      <label>Voice level (under cover)
+      <label>Secret voice loudness
         <select id="level">
-          <option value="-12">−12 dB</option>
-          <option value="-10">−10 dB</option>
-          <option value="-8" selected>−8 dB</option>
-          <option value="-6">−6 dB</option>
-          <option value="-3">−3 dB</option>
-        </select>
-      </label>
-      <label>Voice low-pass
-        <select id="lowpass">
-          <option value="0">None</option>
-          <option value="1500">1.5 kHz</option>
-          <option value="1000" selected>1.0 kHz</option>
-          <option value="800">0.8 kHz</option>
+          <option value="-8">Soft (best hidden)</option>
+          <option value="-5" selected>Normal</option>
+          <option value="-2">Loud (clearest)</option>
         </select>
       </label>
     </div>
+    <details class="hint" style="margin-top:10px">
+      <summary>Advanced</summary>
+      <div class="grid" style="margin-top:8px">
+        <label>Mode
+          <select id="mode">
+            <option value="classic">Classic · cover in both ears</option>
+            <option value="oneear">One-ear · right ear hears only the voice</option>
+            <option value="perslice">Per-slice · cover steps aside for the voice</option>
+          </select>
+        </label>
+        <label>Voice filter (lower = less leak, more muffled)
+          <select id="lowpass">
+            <option value="0">None</option>
+            <option value="1500" selected>1.5 kHz</option>
+            <option value="1000">1.0 kHz</option>
+            <option value="800">0.8 kHz</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:8px"><button id="renderAllBtn" disabled>Build all 3 modes to compare</button></div>
+    </details>
     <div class="row" style="margin-top:12px">
-      <button id="renderBtn" class="primary" disabled>Build file</button>
-      <button id="renderAllBtn" disabled>Build all 3 modes</button>
+      <button id="renderBtn" class="primary" disabled>Make file</button>
     </div>
     <div id="renderStatus" class="status"></div>
   </section>
 
   <section>
-    <h2>4 · Results</h2>
-    <p class="hint">🔊 <b>Speaker</b> plays (L+R)/2, what one speaker plays. 📱 <b>Two-speaker sim</b> mimics a phone with two speakers apart. 🎧 <b>Earphones</b> plays true stereo, so wear both buds. Best final check: download and play on real phones.</p>
+    <h2>4 · Listen &amp; send</h2>
+    <p class="hint"><b>▶ Play</b> plays the real file: with earphones you hear the secret voice. <b>Hear it like a speaker</b> previews what people around you would hear (rain only), even if you're wearing earphones. <b>Download</b> gives you the file to send; it works on its own, no website needed.</p>
     <div id="results"></div>
   </section>
 </main>
@@ -363,21 +366,25 @@ $("playCoverBtn").onclick = () => play([cover.subarray(0, SR * 10)]);
 function addResult(mode, level, lp) {
   const r = render(voice, cover, mode, level, lp);
   const box = document.createElement("div"); box.className = "result";
-  const name = `undertone_${mode}_v${-level}_lp${lp || "none"}.wav`;
+  const name = `undertone ${mode} ${{ "-8": "soft", "-5": "normal", "-2": "loud" }[level] || "v" + -level}.wav`;
   box.innerHTML = `
-    <div class="title">${{ classic: "Classic", oneear: "One-ear", perslice: "Per-slice" }[mode]} · voice ${level} dB · low-pass ${lp ? lp + " Hz" : "none"}</div>
+    <div class="title">${{ classic: "Classic", oneear: "One-ear", perslice: "Per-slice" }[mode]} · ${{ "-8": "soft", "-5": "normal", "-2": "loud" }[level] || level + " dB"} voice · filter ${lp ? lp + " Hz" : "none"}</div>
     <div class="row">
-      <button data-a="spk">🔊 Speaker</button>
-      <button data-a="sim">📱 Two-speaker sim</button>
-      <button data-a="ear">🎧 Earphones</button>
-      <button data-a="L">Left only</button>
-      <button data-a="R">Right only</button>
-      <button data-a="stop">■</button>
-      <button data-a="dl">⬇ WAV</button>
+      <button data-a="ear" class="primary">▶ Play (wear earphones)</button>
+      <button data-a="spk">Hear it like a speaker</button>
+      <button data-a="stop">■ Stop</button>
+      <button data-a="dl">⬇ Download</button>
     </div>
-    <div class="sim">Two-speaker sim: ear offset <input data-s="delay" type="range" min="0" max="20" value="8"> <span data-o="delay"></span>
-      · far speaker <input data-s="gain" type="range" min="40" max="100" value="70"> <span data-o="gain"></span></div>
-    <div class="metrics"></div>`;
+    <details class="hint" style="margin-top:8px"><summary>Test tools</summary>
+      <div class="row" style="margin-top:8px">
+        <button data-a="sim">Two-speaker phone sim</button>
+        <button data-a="L">Left ear only</button>
+        <button data-a="R">Right ear only</button>
+      </div>
+      <div class="sim">Sim: ear offset <input data-s="delay" type="range" min="0" max="20" value="8"> <span data-o="delay"></span>
+        · far speaker <input data-s="gain" type="range" min="40" max="100" value="70"> <span data-o="gain"></span></div>
+      <div class="metrics"></div>
+    </details>`;
   const $$ = s => box.querySelector(s);
   let m;
   const update = () => {
