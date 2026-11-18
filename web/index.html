@@ -91,12 +91,6 @@
   <section>
     <h2>4 · Make it</h2>
     <div class="grid">
-      <label>Mode
-        <select id="mode">
-          <option value="hidden" selected>Hidden · best for phone speakers (iPhones)</option>
-          <option value="clear">Clear · loudest on earphones</option>
-        </select>
-      </label>
       <label>Secret voice loudness
         <select id="level">
           <option value="-8">Soft (best hidden)</option>
@@ -105,10 +99,17 @@
         </select>
       </label>
     </div>
-    <p id="modeHint" class="hint"></p>
+    <p class="hint">Plays as just the song on any speaker, including iPhones. On earphones your voice floats inside their head.</p>
     <details class="hint" style="margin-top:10px">
       <summary>Advanced</summary>
+      <p id="modeHint" class="hint"></p>
       <div class="grid" style="margin-top:8px">
+        <label>Mode
+          <select id="mode">
+            <option value="hidden" selected>Hidden · best for phone speakers (iPhones)</option>
+            <option value="clear">Clear · loudest on earphones</option>
+          </select>
+        </label>
         <label>Voice filter (lower = less leak, more muffled)
           <select id="lowpass">
             <option value="0">None</option>
