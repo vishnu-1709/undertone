@@ -71,7 +71,7 @@
       <label class="file">Upload song, podcast or video<input id="coverFile" type="file" accept="audio/*,video/*"></label>
       <button id="playCoverBtn" disabled>▶ Hear it</button>
     </div>
-    <div id="coverStatus" class="status">Busy music with a steady beat hides your voice best. Any audio works.</div>
+    <div id="coverStatus" class="status">Full, continuous sound hides your voice best on phones (rain, piano, guitar, pads). Any audio works.</div>
   </section>
 
   <section>
@@ -219,6 +219,16 @@ function biquad(x, type, f, Q) {
   }
   return y;
 }
+// Peaking EQ (RBJ cookbook): boost or cut around f by gainDb.
+function peakEq(x, f, Q, gainDb) {
+  const A = Math.pow(10, gainDb / 40), w = 2 * Math.PI * f / SR, cs = Math.cos(w), al = Math.sin(w) / (2 * Q);
+  const b0 = 1 + al * A, b1 = -2 * cs, b2 = 1 - al * A, a0 = 1 + al / A, a1 = -2 * cs, a2 = 1 - al / A, y = new Float64Array(x.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < x.length; i++) { const o = (b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0; x2 = x1; x1 = x[i]; y2 = y1; y1 = o; y[i] = o; }
+  return y;
+}
+// Tiny phone speakers barely reproduce bass: model as a 24 dB/oct roll-off below ~350 Hz.
+const phoneSpeaker = x => biquad(biquad(x, "hp", 350, 0.7071), "hp", 350, 0.7071);
 // 4th-order Butterworth, run forwards and backwards (zero phase)
 function butter4(x, type, f) {
   const once = s => biquad(biquad(s, type, f, 0.5412), type, f, 1.3066);
@@ -500,7 +510,8 @@ function prepCover() {
   const p = peak(c); c = c.map(x => x / (p + 1e-12) * 0.5);
   if (protectOn()) c = compressCover(c);
   S.cover = c;
-  const env = windowRms(c); S.cF = frames(env); S.cRef = loudRef(env);
+  // judge masking with what a phone speaker actually plays of the song
+  const penv = windowRms(phoneSpeaker(c)); S.cF = frames(penv); S.cRef = loudRef(penv);
 }
 function prepVoice() {
   if (!S.voiceRaw) return;
@@ -511,8 +522,11 @@ function prepLevel() {
   if (!S.vBase || !S.cover) return;
   const g = activeRms(S.cover) * Math.pow(10, (+$("level").value + modeOffset()) / 20) / (activeRms(S.vBase) + 1e-12);
   S.vScaled = S.vBase.map(x => x * g);
+  // Low-range boost: earbuds play it and the brain's unmasking is strongest
+  // there (up to ~15 dB near 250 Hz); phone speakers can't reproduce much of it.
+  if (hiddenMode()) S.vScaled = peakEq(S.vScaled, 250, 0.7, 6);
   S.vF = frames(windowRms(S.vScaled, 0.1));
-  const twin = twoSpeaker(S.vScaled, S.vScaled.map(x => -x), SIM_DELAY, SIM_GAIN);
+  const twin = phoneSpeaker(twoSpeaker(S.vScaled, S.vScaled.map(x => -x), SIM_DELAY, SIM_GAIN));
   S.kV = rms(twin) / (rms(S.vScaled) + 1e-12);
   clampOff();
 }
@@ -639,7 +653,7 @@ function metrics(r, delay, gain) {
   const n = r.L.length, mono = new Float64Array(n);
   for (let i = 0; i < n; i++) mono[i] = (r.L[i] + r.R[i]) / 2;
   const leakMono = db(rms(mono.map((x, i) => x - r.C[i]))) - db(rms(r.C));
-  const sim = twoSpeaker(r.L, r.R, delay, gain), voiceSim = twoSpeaker(r.V, r.V.map(x => -x), delay, gain);
+  const sim = phoneSpeaker(twoSpeaker(r.L, r.R, delay, gain)), voiceSim = phoneSpeaker(twoSpeaker(r.V, r.V.map(x => -x), delay, gain));
   return { leakMono, leakSim: shareDb(sim, voiceSim), vL: shareDb(r.L, r.V), vR: shareDb(r.R, r.V.map(x => -x)), sim };
 }
 
@@ -728,7 +742,7 @@ $("playVoiceBtn").onclick = () => play([S.vBase]);
 $("playCoverBtn").onclick = () => play([S.coverRaw.subarray(0, SR * 15)]);
 $("suggestBtn").onclick = suggest;
 ["cleanup", "lowpass", "protect"].forEach(id => $(id).addEventListener("change", () => refresh()));
-$("mode").addEventListener("change", () => { updateModeHint(); refresh(false); });
+$("mode").addEventListener("change", () => { updateModeHint(); refresh(); });
 updateModeHint();
 $("level").addEventListener("change", () => refresh(false));
 
