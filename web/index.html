@@ -753,23 +753,35 @@ let meterRaf = null;
 function startMeter(stream) {
   const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser(); an.fftSize = 1024; src.connect(an);
   const buf = new Float32Array(an.fftSize), bar = $("meter").firstElementChild, t0 = performance.now();
-  let quiet = 0, total = 0;
+  let quiet = 0, total = 0, smooth = 0;
   $("meter").style.display = "block";
+  const st = $("voiceStatus");
   const tick = () => {
     an.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; const r = Math.sqrt(s / buf.length);
-    bar.style.width = `${Math.min(100, r * 500)}%`; bar.style.background = r > 0.3 ? "var(--bad)" : "var(--good)";
+    smooth = 0.93 * smooth + 0.07 * r;                       // ~0.5 s average
+    const loud = smooth > LOUD_RMS;
+    bar.style.width = `${Math.min(100, r * 500)}%`; bar.style.background = loud ? "var(--warn)" : "var(--good)";
     if (performance.now() - t0 > 1500) { total++; if (r < 0.01) quiet++; }
-    $("voiceStatus").textContent = total > 30 && quiet / total > 0.85 ? "Too quiet. Move closer to the mic." : "Recording. Speak softly, close to the mic.";
+    st.className = loud ? "status warn" : "status";
+    st.textContent = loud ? "Too loud to stay hidden. Speak softer."
+      : total > 30 && quiet / total > 0.85 ? "Too quiet. Move closer to the mic." : "Recording. Speak softly, close to the mic.";
     meterRaf = requestAnimationFrame(tick);
   };
   tick();
 }
 function stopMeter() { cancelAnimationFrame(meterRaf); $("meter").style.display = "none"; }
+// Loud speech is tonal (strong pitch), and tones show through the song on
+// phone speakers even at the same level, so warn and suggest a softer take.
+const LOUD_RMS = 0.09, LOUD_DB = -21;
 function voiceLoaded(label) {
   $("voiceStatus").textContent = "Processing…";
   setTimeout(() => {
     S.voiceKey = ""; refresh();
-    $("voiceStatus").textContent = `${label}, ${(S.vBase.length / SR).toFixed(1)} s after trimming silence.`;
+    const st = $("voiceStatus"), loud = label === "Recorded" && db(activeRms(S.voiceRaw)) > LOUD_DB;
+    st.className = loud ? "status warn" : "status";
+    st.textContent = loud
+      ? "This was recorded loudly, so it may be faintly heard on phone speakers. Record again more softly for the best result."
+      : `${label}, ${(S.vBase.length / SR).toFixed(1)} s after trimming silence.`;
     $("playVoiceBtn").disabled = false;
     if (S.cover) suggest();
   }, 20);
