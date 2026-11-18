@@ -156,7 +156,23 @@
             <option value="-2">Louder</option>
           </select>
         </label>
+        <label class="field">Soft rain under the song
+          <select id="bed">
+            <option value="0" selected>Off</option>
+            <option value="-16">Faint</option>
+            <option value="-11">Soft</option>
+            <option value="-7">Noticeable</option>
+          </select>
+        </label>
+        <label class="field">Song in the right ear too
+          <select id="share">
+            <option value="0" selected>None (voice alone)</option>
+            <option value="0.3">A little</option>
+            <option value="0.5">Some</option>
+          </select>
+        </label>
       </div>
+      <p class="note">Songs with gaps can let a faint voice through on phones with two speakers. Rain under the song, or a little song in the right ear, covers those gaps.</p>
       <details>
         <summary>More settings</summary>
         <div class="grid">
@@ -563,6 +579,13 @@ function prepCover() {
   let c = fitLength(S.coverRaw, Math.max(S.coverRaw.length, vLen + LEAD + TAIL));
   const p = peak(c); c = c.map(x => x / (p + 1e-12) * 0.5);
   if (protectOn()) c = compressCover(c);
+  // Optional rain bed: continuous, every frequency, fills the song's gaps.
+  const bedDb = +$("bed").value;
+  if (bedDb < 0) {
+    if (!S.rainBed) S.rainBed = PRESETS.rain();
+    const bed = fitLength(S.rainBed, c.length), k = activeRms(c) * Math.pow(10, bedDb / 20) / (rms(bed) + 1e-12);
+    c = c.map((x, i) => x + bed[i] * k);
+  }
   S.cover = c;
   // judge masking with what a phone speaker actually plays of the song
   const penv = windowRms(phoneSpeaker(c)); S.cF = frames(penv); S.cRef = loudRef(penv);
@@ -685,7 +708,7 @@ function twoSpeaker(L, R, delay, gain) {
   return y;
 }
 function shareDb(x, part) { const rest = x.map((s, i) => s - part[i]); return db(rms(part)) - db(rms(rest)); }
-// One-ear: L = 2C + V, R = −V. A speaker plays (L+R)/2 = C, so the voice cancels.
+// One-ear: L = 2C + V, R = −V (optionally some song in R too). A speaker plays (L+R)/2 = C, so the voice cancels.
 function render() {
   const s = Math.max(0, S.off - LEAD), e = Math.min(S.cover.length, S.off + S.vScaled.length + TAIL), n = e - s;
   let c = S.cover.slice(s, e);
@@ -694,7 +717,9 @@ function render() {
   if (protectOn()) voiceFollow(vf, c);
   const mask = +$("mask").value; if (mask > 0) c = maskCover(c, vf, mask);
   fade(c, Math.round(SR * 0.3)); fade(vf);
-  const L = c.map((x, i) => 2 * x + vf[i]), R = vf.map(x => -x);
+  // share = how much song also goes to the right channel (0 = one-ear).
+  // L + R is still 2C, so a single speaker still cancels the voice exactly.
+  const share = +$("share").value, L = c.map((x, i) => (2 - share) * x + vf[i]), R = c.map((x, i) => share * x - vf[i]);
   const k = 0.7079 / Math.max(peak(L), peak(R), 1e-12);
   for (let i = 0; i < n; i++) { L[i] *= k; R[i] *= k; c[i] *= k; vf[i] *= k; }
   return { L, R, C: c, V: vf };
@@ -794,6 +819,7 @@ $("suggestBtn").onclick = suggest;
 ["cleanup", "lowpass", "protect"].forEach(id => $(id).addEventListener("change", () => refresh()));
 
 $("level").addEventListener("change", () => refresh(false));
+$("bed").addEventListener("change", () => refresh());
 
 function addResult() {
   const r = render(), box = document.createElement("div"); box.className = "result";
