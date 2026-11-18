@@ -787,7 +787,7 @@ function startMeter(stream) {
 function stopMeter() { cancelAnimationFrame(meterRaf); $("meter").style.display = "none"; }
 // Loud speech is tonal (strong pitch), and tones show through the song on
 // phone speakers even at the same level, so warn and suggest a softer take.
-const LOUD_RMS = 0.09, LOUD_DB = -21;
+const LOUD_RMS = 0.16, LOUD_DB = -16; // raised after an iPhone 17 test: normal-to-slightly-raised speech did not leak
 function voiceLoaded(label) {
   $("voiceStatus").textContent = "Processing…";
   setTimeout(() => {
