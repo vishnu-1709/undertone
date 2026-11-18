@@ -867,7 +867,9 @@ const fc = $("fig"), fx = fc.getContext("2d"), still = matchMedia("(prefers-redu
 let figT = 0;
 function figVoice(t) { // speech-like wiggle, or the user's own recording once there is one
   if (S.vBase && S.vBase.length > SR) { const i = Math.floor(((t * 2400) % (S.vBase.length - 1) + S.vBase.length) % S.vBase.length); return S.vBase[i] * 1.1; }
-  const env = Math.max(0, Math.sin(t * 1.3)) ** 1.5 * (0.6 + 0.4 * Math.sin(t * 0.41));
+  // syllable-like bursts with short pauses, always some movement
+  const syl = 0.5 + 0.5 * Math.sin(t * 2.6), phrase = 0.55 + 0.45 * Math.sin(t * 0.45);
+  const env = (0.15 + 0.85 * syl * syl) * phrase;
   return env * (Math.sin(t * 9) * 0.6 + Math.sin(t * 18 + 1) * 0.28 + Math.sin(t * 27 + 2) * 0.12);
 }
 function drawFig() {
@@ -875,12 +877,12 @@ function drawFig() {
   if (fc.width !== w * dpr) { fc.width = w * dpr; fc.height = h * dpr; }
   fx.setTransform(dpr, 0, 0, dpr, 0, 0); fx.clearRect(0, 0, w, h);
   const rows = [{ y: h * 0.2, s: 1, c: "#2F5DA8", label: "L" }, { y: h * 0.5, s: -1, c: "#B4472F", label: "R" }, { y: h * 0.8, s: 0, c: "#1D2B45", label: "L + R" }];
-  const x0 = 64, span = w - x0 - 16, amp = h * 0.11;
+  const x0 = 64, span = w - x0 - 16, amp = h * 0.12;
   fx.font = "italic 17px 'STIX Two Text', serif"; fx.textBaseline = "middle";
   for (const r of rows) {
     fx.fillStyle = r.c; fx.fillText(r.label, 14, r.y);
     fx.strokeStyle = r.c; fx.lineWidth = r.s === 0 ? 2 : 1.6; fx.beginPath();
-    for (let x = 0; x <= span; x += 1) { const v = r.s * figVoice(figT + x / span * 6); const y = r.y - v * amp; x ? fx.lineTo(x0 + x, y) : fx.moveTo(x0 + x, y); }
+    for (let x = 0; x <= span; x += 1) { const v = r.s * figVoice(figT + x / span * Math.max(6, span / 70)); const y = r.y - v * amp; x ? fx.lineTo(x0 + x, y) : fx.moveTo(x0 + x, y); }
     fx.stroke();
   }
   fx.font = "italic 15px 'STIX Two Text', serif"; fx.fillStyle = "#5E6673"; fx.textAlign = "right";
