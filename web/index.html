@@ -124,6 +124,10 @@
         <button class="chip" data-preset="rain">Rain</button>
         <button class="chip" data-preset="lofi">Lo-fi beat</button>
         <button class="chip" data-preset="upbeat">Upbeat</button>
+        <button class="chip" data-preset="ocean">Ocean</button>
+        <button class="chip" data-preset="fireplace">Fireplace</button>
+        <button class="chip" data-preset="cafe">Café</button>
+        <button class="chip" data-preset="piano">Soft piano</button>
         <label class="file">Upload a song<input id="coverFile" type="file" accept="audio/*,video/*"></label>
         <button id="playCoverBtn" disabled>Listen</button>
       </div>
@@ -542,7 +546,7 @@ function synth(seconds, bpm, pattern, textureDb = null) {
   const kick = (t, a = 0.9) => add(t, u => u > 0.35 ? null : a * Math.sin(2 * Math.PI * (50 * u + 60 * (1 - Math.exp(-u * 25)) / 25 * 25 * 0.04 + 45 * u)) * Math.exp(-u * 9));
   const snare = (t, a = 1) => add(t, u => u > 0.2 ? null : a * ((Math.random() * 2 - 1) * 0.35 * Math.exp(-u * 22) + 0.15 * Math.sin(2 * Math.PI * 190 * u) * Math.exp(-u * 30)));
   const hat = (t, a = 0.08, len = 0.05) => add(t, u => u > len ? null : (Math.random() * 2 - 1) * a * Math.exp(-u * (4.5 / len)));
-  const tone = (f, u, harm) => { let s = 0; for (let k = 1; k <= harm; k++) s += Math.sin(2 * Math.PI * f * k * u) / k; return s; };
+  const tone = (f, u, harm) => { let s = 0; for (let k = 1; k <= harm; k++) s += fsin(f * k * u) / k; return s; };
   const note = (t, f, dur, a, harm = 4) => add(t, u => u > dur ? null : a * Math.min(1, u * 30) * Math.min(1, (dur - u) * 8) * tone(f, u, harm));
   // pad: slow fade in and out, slightly detuned pair, overlaps the next chord
   const pad = (t, fs, dur, a) => add(t, u => u > dur + 0.5 ? null : a * Math.min(1, u / 0.25) * Math.min(1, Math.max(0, dur + 0.5 - u) / 0.5) * fs.reduce((s, f) => s + tone(f, u, 5) + tone(f * 1.004, u, 5), 0) / 2);
@@ -557,6 +561,24 @@ function synth(seconds, bpm, pattern, textureDb = null) {
   }
   const p = peak(x); return x.map(s => s / (p + 1e-12) * 0.8);
 }
+// Fast sine from a table; argument in cycles (frequency × time).
+const SIN_N = 16384, SIN_T = Float64Array.from({ length: SIN_N }, (_, i) => Math.sin(2 * Math.PI * i / SIN_N));
+const fsin = c => SIN_T[((c * SIN_N) | 0) & (SIN_N - 1)];
+// Noise sources for the ambient backgrounds.
+function pinkNoise(n) {
+  const x = new Float64Array(n); let b0 = 0, b1 = 0, b2 = 0;
+  for (let i = 0; i < n; i++) { const w = Math.random() * 2 - 1; b0 = 0.99765 * b0 + w * 0.099046; b1 = 0.963 * b1 + w * 0.2965164; b2 = 0.57 * b2 + w * 1.0526913; x[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2; }
+  return x;
+}
+function brownNoise(n) { const x = new Float64Array(n); let b = 0; for (let i = 0; i < n; i++) { b = 0.996 * b + 0.06 * (Math.random() * 2 - 1); x[i] = b; } return x; }
+const finish = x => { const p = peak(x); return x.map(v => v / (p + 1e-12) * 0.8); };
+// Slow random wobble between lo and 1 (never drops to silence).
+function wobble(n, rateHz, lo) {
+  const out = new Float64Array(n), step = Math.round(SR / rateHz); let a = Math.random(), b = Math.random();
+  for (let i = 0; i < n; i++) { if (i % step === 0) { a = b; b = Math.random(); } const t = (i % step) / step, s = a + (b - a) * (0.5 - 0.5 * Math.cos(Math.PI * t)); out[i] = lo + (1 - lo) * s; }
+  return out;
+}
+const PRESET_CACHE = {};
 const CHORDS = [[220, 261.6, 329.6, 392], [174.6, 220, 261.6, 329.6], [130.8, 164.8, 196, 246.9], [196, 246.9, 293.7, 349.2]];
 const PRESETS = {
   lofi: () => synth(32, 80, ({ kick, snare, hat, note, pad, beat, bars }) => {
@@ -579,6 +601,58 @@ const PRESETS = {
       for (let h = 0; h < 16; h++) hat(t0 + h * beat / 4, h % 4 === 2 ? 0.09 : 0.06, 0.09);
     }
   }, -8),
+  ocean: () => {
+    const n = SR * 40, body = butter4(pinkNoise(n), "lp", 2200), foam = butter4(pinkNoise(n), "hp", 1800), x = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const t = i / SR, w = 0.5 + 0.5 * Math.sin(2 * Math.PI * t / 8.5) * 0.6 + 0.5 * Math.sin(2 * Math.PI * t / 13 + 1) * 0.4;
+      const swell = 0.55 + 0.45 * w;                       // waves rise and fall but never go quiet
+      x[i] = body[i] * swell + foam[i] * 0.35 * swell * swell;
+    }
+    return finish(x);
+  },
+  fireplace: () => {
+    const n = SR * 30, rumble = butter4(brownNoise(n), "lp", 500), mid = butter4(butter4(pinkNoise(n), "hp", 200), "lp", 2500), hiss = butter4(pinkNoise(n), "hp", 2500);
+    const flick = wobble(n, 3, 0.6), x = new Float64Array(n);
+    for (let i = 0; i < n; i++) x[i] = rumble[i] * 0.5 + mid[i] * 0.9 * flick[i] + hiss[i] * 0.25;
+    for (let c = 0; c < n / SR * 7; c++) {                   // crackles and pops
+      const s0 = Math.floor(Math.random() * (n - SR)), len = Math.floor(SR * (0.002 + Math.random() * 0.012)), a = 0.4 + Math.random() * (Math.random() < 0.15 ? 2.5 : 0.8);
+      for (let i = 0; i < len; i++) x[s0 + i] += (Math.random() * 2 - 1) * a * Math.exp(-i / (len / 3));
+    }
+    return finish(x);
+  },
+  cafe: () => {
+    const n = SR * 30, room = butter4(pinkNoise(n), "lp", 4000), x = new Float64Array(n);
+    for (let i = 0; i < n; i++) x[i] = room[i] * 0.6;
+    for (let v = 0; v < 5; v++) {                            // distant chatter: speech-shaped noise with syllable rhythm
+      const lo = 250 + Math.random() * 150, voice = butter4(butter4(pinkNoise(n), "hp", lo), "lp", 2200 + Math.random() * 800);
+      const syl = wobble(n, 3 + Math.random() * 3, 0.25), phrase = wobble(n, 0.3 + Math.random() * 0.3, 0.35), a = 0.35 + Math.random() * 0.35;
+      for (let i = 0; i < n; i++) x[i] += voice[i] * syl[i] * phrase[i] * a;
+    }
+    for (let c = 0; c < 10; c++) {                           // cups and spoons
+      const s0 = Math.floor(Math.random() * (n - SR)), f = 2400 + Math.random() * 2400, a = 0.05 + Math.random() * 0.06;
+      for (let i = 0; i < SR * 0.4; i++) { const u = i / SR; x[s0 + i] += a * Math.exp(-u * 14) * (fsin(f * u) + 0.5 * fsin(f * 2.7 * u)); }
+    }
+    return finish(x);
+  },
+  piano: () => {
+    const n = SR * 32, x = new Float64Array(n), beat = 0.42;
+    const key = (t, f, a) => {
+      const s0 = Math.round(t * SR), fk = [], d = [], r = [];
+      for (let k = 1; k <= 6; k++) { fk.push(f * k * (1 + 0.0004 * k * k)); d.push(1 / (k * k)); r.push(Math.exp(-(0.7 + 0.5 * k) / SR)); }
+      for (let i = 0; i < SR * 4.5 && s0 + i < n; i++) { const u = i / SR; let v = 0;
+        for (let k = 0; k < 6; k++) { v += fsin(fk[k] * u) * d[k]; d[k] *= r[k]; }   // each harmonic decays at its own rate
+        x[s0 + i] += a * Math.min(1, u * 200) * v; }
+    };
+    for (let t = 0, j = 0; t < 31; t += beat, j++) {         // gentle arpeggios with the pedal down
+      const ch = CHORDS[Math.floor(t / (8 * beat)) % 4], f = [ch[0] / 2, ch[1], ch[2], ch[3], ch[2], ch[1]][j % 6];
+      key(t, f, 0.18 + 0.05 * Math.random());
+      if (j % 8 === 0) key(t, ch[0] / 2, 0.22);
+    }
+    // soft rain against the window keeps the voice's range covered between notes
+    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(x) * Math.pow(10, -6 / 20) / (rms(bed) + 1e-12);
+    for (let i = 0; i < n; i++) x[i] += bed[i] * k;
+    return finish(x);
+  },
   rain: () => {
     const n = SR * 30, x = new Float64Array(n);
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
@@ -845,7 +919,8 @@ $("demoVoiceBtn").onclick = () => {
 };
 document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
   document.querySelectorAll("[data-preset]").forEach(x => x.classList.toggle("on", x === b));
-  S.coverRaw = PRESETS[b.dataset.preset](); coverLoaded(b.textContent);
+  $("coverStatus").textContent = "Preparing…";
+  setTimeout(() => { const k = b.dataset.preset; S.coverRaw = PRESET_CACHE[k] || (PRESET_CACHE[k] = PRESETS[k]()); coverLoaded(b.textContent); }, 20);
 });
 $("coverFile").onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
