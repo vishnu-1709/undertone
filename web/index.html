@@ -127,7 +127,7 @@
         <button class="chip" data-preset="ocean">Ocean</button>
         <button class="chip" data-preset="fireplace">Fireplace</button>
         <button class="chip" data-preset="cafe">Café</button>
-        <button class="chip" data-preset="piano">Piano in the rain</button>
+        <button class="chip" data-preset="piano">Soft piano</button>
         <button class="chip" data-preset="strings">Strings</button>
         <button class="chip" data-preset="pad">Ambient pad</button>
         <label class="file">Upload a song<input id="coverFile" type="file" accept="audio/*,video/*"></label>
@@ -580,6 +580,44 @@ function wobble(n, rateHz, lo) {
   for (let i = 0; i < n; i++) { if (i % step === 0) { a = b; b = Math.random(); } const t = (i % step) / step, s = a + (b - a) * (0.5 - 0.5 * Math.cos(Math.PI * t)); out[i] = lo + (1 - lo) * s; }
   return out;
 }
+// A "breathy shadow" of a sound: same frequency shape over time, random phase.
+// It is noise (so it hides a voice like rain does) but it sounds like the
+// instrument itself, not like rain.
+function selfTexture(x, smooth = 3) {
+  const N = 2048, H = 512, B = N / 2 + 1, len = x.length;
+  const win = new Float64Array(N).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N));
+  const frames = Math.ceil((len + N) / H), mags = [];
+  for (let f = 0; f < frames; f++) {
+    const re = new Float64Array(N), im = new Float64Array(N), off = f * H - N;
+    for (let i = 0; i < N; i++) { const k = off + i; re[i] = k >= 0 && k < len ? x[k] * win[i] : 0; }
+    fft(re, im, false);
+    const m = new Float64Array(B); for (let k = 0; k < B; k++) m[k] = Math.hypot(re[k], im[k]); mags.push(m);
+  }
+  const out = new Float64Array(len + 2 * N), wsum = new Float64Array(len + 2 * N);
+  for (let f = 0; f < frames; f++) {
+    const re = new Float64Array(N), im = new Float64Array(N);
+    // blur over time (±smooth frames) and frequency (about 1/6 octave), so the
+    // texture keeps the instrument's tone colour but fills the gaps between its notes
+    const avg = new Float64Array(B); let c = 0;
+    for (let d = -smooth; d <= smooth; d++) { const g = mags[f + d]; if (!g) continue; c++; for (let k = 0; k < B; k++) avg[k] += g[k]; }
+    const cs = new Float64Array(B + 1); for (let k = 0; k < B; k++) cs[k + 1] = cs[k] + avg[k] / c;
+    for (let k = 1; k < N / 2; k++) {
+      const bw = Math.max(2, Math.round(k * 0.06)), a = Math.max(1, k - bw), z = Math.min(B - 1, k + bw), m = (cs[z + 1] - cs[a]) / (z - a + 1);
+      const ph = Math.random() * 2 * Math.PI; re[k] = m * Math.cos(ph); im[k] = m * Math.sin(ph); re[N - k] = re[k]; im[N - k] = -im[k];
+    }
+    fft(re, im, true);
+    const off = f * H;
+    for (let i = 0; i < N; i++) { out[off + i] += re[i] * win[i]; wsum[off + i] += win[i] * win[i]; }
+  }
+  const y = new Float64Array(len);
+  for (let i = 0; i < len; i++) { const w = wsum[i + N]; y[i] = w > 1e-8 ? out[i + N] / w : 0; }
+  return y;
+}
+// Mix a sound with its own texture at `db` relative to the sound.
+function withTexture(x, db) {
+  const t = selfTexture(x), k = rms(x) * Math.pow(10, db / 20) / (rms(t) + 1e-12);
+  return x.map((v, i) => v + t[i] * k);
+}
 // Simple hall reverb (Schroeder: 4 parallel combs + 2 allpasses).
 function reverb(x, decay = 0.84) {
   const n = x.length, out = new Float64Array(n), combs = [1557, 1617, 1491, 1422].map(d => Math.round(d * SR / 44100));
@@ -608,7 +646,8 @@ function ensemble(o) {
   }
   let y = butter4(x, "lp", o.lp);
   if (o.sweep) { const w = wobble(n, 0.12, 0.5); y = y.map((v, i) => v * w[i]); }
-  const air = butter4(butter4(pinkNoise(n), "hp", 250), "lp", 3500), k = activeRms(y) * Math.pow(10, o.noiseDb / 20) / (rms(air) + 1e-12);
+  y = withTexture(y, o.noiseDb);                       // bowed / breathy layer of the chords themselves
+  const air = butter4(butter4(pinkNoise(n), "hp", 250), "lp", 3500), k = activeRms(y) * Math.pow(10, -16 / 20) / (rms(air) + 1e-12);
   for (let i = 0; i < n; i++) y[i] += air[i] * k;
   return finish(fitLength(y, n * 2, Math.round(0.6 * SR)));
 }
@@ -646,9 +685,10 @@ const PRESETS = {
   },
   fireplace: () => {
     const n = SR * 30, rumble = butter4(brownNoise(n), "lp", 500), mid = butter4(butter4(pinkNoise(n), "hp", 200), "lp", 2500), hiss = butter4(pinkNoise(n), "hp", 2500);
-    const flick = wobble(n, 3, 0.6), x = new Float64Array(n);
-    for (let i = 0; i < n; i++) x[i] = rumble[i] * 0.5 + mid[i] * 0.9 * flick[i] + hiss[i] * 0.25;
-    for (let c = 0; c < n / SR * 7; c++) {                   // crackles and pops
+    const flick = wobble(n, 3, 0.6), crackle = wobble(n, 30, 0.55), x = new Float64Array(n);
+    // the mid range is a fine, flickering crackle (burning wood) rather than flat hiss
+    for (let i = 0; i < n; i++) x[i] = rumble[i] * 0.6 + mid[i] * 0.95 * flick[i] * crackle[i] + hiss[i] * 0.2;
+    for (let c = 0; c < n / SR * 12; c++) {                  // crackles and pops
       const s0 = Math.floor(Math.random() * (n - SR)), len = Math.floor(SR * (0.002 + Math.random() * 0.012)), a = 0.4 + Math.random() * (Math.random() < 0.15 ? 2.5 : 0.8);
       for (let i = 0; i < len; i++) x[s0 + i] += (Math.random() * 2 - 1) * a * Math.exp(-i / (len / 3));
     }
@@ -656,8 +696,8 @@ const PRESETS = {
   },
   cafe: () => {
     const n = SR * 30, room = butter4(pinkNoise(n), "lp", 4000), x = new Float64Array(n);
-    for (let i = 0; i < n; i++) x[i] = room[i] * 0.6;
-    for (let v = 0; v < 5; v++) {                            // distant chatter: speech-shaped noise with syllable rhythm
+    for (let i = 0; i < n; i++) x[i] = room[i] * 0.25;
+    for (let v = 0; v < 6; v++) {                            // distant chatter: speech-shaped noise with syllable rhythm
       const lo = 250 + Math.random() * 150, voice = butter4(butter4(pinkNoise(n), "hp", lo), "lp", 2200 + Math.random() * 800);
       const syl = wobble(n, 3 + Math.random() * 3, 0.25), phrase = wobble(n, 0.3 + Math.random() * 0.3, 0.35), a = 0.35 + Math.random() * 0.35;
       for (let i = 0; i < n; i++) x[i] += voice[i] * syl[i] * phrase[i] * a;
@@ -687,14 +727,15 @@ const PRESETS = {
     }
     const wet = reverb(x), y = new Float64Array(n);
     for (let i = 0; i < n; i++) y[i] = x[i] * 0.7 + wet[i] * 0.9;
-    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(y) / (rms(bed) + 1e-12);
-    for (let i = 0; i < n; i++) y[i] += bed[i] * k;                                 // rain on the window, as loud as the piano: the noise is what hides the voice
-    return finish(y);
+    const z = withTexture(y, 1);                                                    // a soft wash of the piano itself
+    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(z) * Math.pow(10, -14 / 20) / (rms(bed) + 1e-12);
+    for (let i = 0; i < n; i++) z[i] += bed[i] * k;                                 // just a little rain on the window
+    return finish(z);
   },
   // Continuous instrumentals: dense, detuned, slowly moving chords that never stop,
   // with a little bow / air noise so they cover a voice like noise does.
   strings: () => ensemble({ detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -4, lp: 4500 }),
-  pad: () => ensemble({ detunes: [-0.008, -0.003, 0.004, 0.009], harm: 5, vib: 0.3, vibDepth: 0.002, attack: 1.6, octaveUp: false, noiseDb: -3, lp: 3000, sweep: true }),
+  pad: () => ensemble({ detunes: [-0.008, -0.003, 0.004, 0.009], harm: 5, vib: 0.3, vibDepth: 0.002, attack: 1.6, octaveUp: false, noiseDb: -1, lp: 3000, sweep: true }),
   rain: () => {
     const n = SR * 30, x = new Float64Array(n);
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
