@@ -43,6 +43,7 @@
   .hint { font-size:13px; color:var(--dim); margin:8px 0 0; }
   details summary { cursor:pointer; }
 </style>
+<script src="vendor/lame.min.js" defer></script>
 </head>
 <body>
 <main>
@@ -195,6 +196,17 @@ function wavBlob(L, R) {
   return new Blob([buf], { type: "audio/wav" });
 }
 
+// MP3 (lamejs, 256 kbps). High bitrate keeps the left/right difference that holds the voice.
+function mp3Blob(L, R, kbps = 256) {
+  const enc = new lamejs.Mp3Encoder(2, SR, kbps), q = x => Math.max(-32768, Math.min(32767, Math.round(x * 32767)));
+  const l16 = Int16Array.from(L, q), r16 = Int16Array.from(R, q), parts = [], step = 1152 * 20;
+  for (let i = 0; i < l16.length; i += step) { const b = enc.encodeBuffer(l16.subarray(i, i + step), r16.subarray(i, i + step)); if (b.length) parts.push(new Uint8Array(b)); }
+  const end = enc.flush(); if (end.length) parts.push(new Uint8Array(end));
+  return new Blob(parts, { type: "audio/mpeg" });
+}
+function saveBlob(blob, name) {
+  const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = name; l.click(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+}
 // --------------------------------------------------------------- dsp utils
 const rms = x => { let s = 0; for (let i = 0; i < x.length; i++) s += x[i] * x[i]; return Math.sqrt(s / x.length + 1e-24); };
 const db = x => 20 * Math.log10(Math.max(x, 1e-12));
@@ -755,20 +767,25 @@ function addResult() {
       <button data-a="ear" class="primary">▶ Play (wear earphones)</button>
       <button data-a="spk">Hear it like a speaker</button>
       <button data-a="stop">■ Stop</button>
-      <button data-a="dl">⬇ Download</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button data-a="share" class="primary">📤 Send</button>
+      <button data-a="dl">⬇ Download MP3</button>
     </div>
     <details class="hint" style="margin-top:8px"><summary>Test tools</summary>
       <div class="row" style="margin-top:8px">
         <button data-a="sim">Two-speaker phone sim</button>
         <button data-a="L">Left ear only</button>
         <button data-a="R">Right ear only</button>
+        <button data-a="wav">⬇ WAV (lossless)</button>
       </div>
       <div class="sim">Sim: ear offset <input data-s="delay" type="range" min="0" max="20" value="8"> <span data-o="delay"></span>
         · far speaker <input data-s="gain" type="range" min="40" max="100" value="70"> <span data-o="gain"></span></div>
       <div class="metrics"></div>
     </details>`;
   const $$ = q => box.querySelector(q);
-  let m;
+  let m, mp3 = null;
+  const getMp3 = () => mp3 || (mp3 = mp3Blob(r.L, r.R));
   const update = () => {
     const d = +$$('[data-s="delay"]').value, g = +$$('[data-s="gain"]').value / 100;
     $$('[data-o="delay"]').textContent = `${(d / SR * 343 * 100).toFixed(1)} cm`;
@@ -790,7 +807,14 @@ function addResult() {
     else if (a === "L") play([r.L, new Float64Array(n)]);
     else if (a === "R") play([new Float64Array(n), r.R]);
     else if (a === "stop") stop();
-    else if (a === "dl") { const u = URL.createObjectURL(wavBlob(r.L, r.R)); const l = document.createElement("a"); l.href = u; l.download = "undertone.wav"; l.click(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
+    else if (a === "wav") saveBlob(wavBlob(r.L, r.R), "undertone.wav");
+    else if (a === "dl") saveBlob(getMp3(), "undertone.mp3");
+    else if (a === "share") {
+      const file = new File([getMp3()], "undertone.mp3", { type: "audio/mpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], text: "🎧 put both earbuds in" }).catch(() => {});
+      } else { saveBlob(file, "undertone.mp3"); $("renderStatus").textContent = "Sharing isn't supported here, so it was downloaded. Send it from your chat app."; }
+    }
   });
   $("results").prepend(box);
 }
