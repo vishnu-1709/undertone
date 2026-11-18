@@ -658,7 +658,7 @@ function ensemble(o) {
   let y = butter4(x, "lp", o.lp);
   if (o.sweep) { const w = wobble(n, 0.12, 0.5); y = y.map((v, i) => v * w[i]); }
   y = withTexture(y, o.noiseDb);                       // bowed / breathy layer of the chords themselves
-  const air = butter4(butter4(pinkNoise(n), "hp", 250), "lp", 3500), k = activeRms(y) * Math.pow(10, -16 / 20) / (rms(air) + 1e-12);
+  const air = butter4(butter4(pinkNoise(n), "hp", 250), "lp", 3500), k = activeRms(y) * Math.pow(10, (o.airDb ?? -16) / 20) / (rms(air) + 1e-12);
   for (let i = 0; i < n; i++) y[i] += air[i] * k;
   return finish(fitLength(y, n * 2, Math.round(0.6 * SR)));
 }
@@ -762,15 +762,15 @@ const PRESETS = {
     }
     const wet = reverb(x), y = new Float64Array(n);
     for (let i = 0; i < n; i++) y[i] = x[i] * 0.7 + wet[i] * 0.9;
-    const z = withTexture(y, 1);                                                    // a soft wash of the piano itself
-    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(z) * Math.pow(10, -14 / 20) / (rms(bed) + 1e-12);
+    const z = withTexture(y, -10);                                                    // a soft wash of the piano itself
+    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(z) * Math.pow(10, -26 / 20) / (rms(bed) + 1e-12);
     for (let i = 0; i < n; i++) z[i] += bed[i] * k;                                 // just a little rain on the window
     return finish(z);
   },
   // Continuous instrumentals: dense, detuned, slowly moving chords that never stop,
   // with a little bow / air noise so they cover a voice like noise does.
   strings: () => ensemble({ detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -4, lp: 4500 }),
-  stringsDrive: () => ensemble({ ostinato: true, detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -4, lp: 4500 }),
+  stringsDrive: () => ensemble({ ostinato: true, detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -10, airDb: -26, lp: 4500 }),
   pad: () => ensemble({ detunes: [-0.008, -0.003, 0.004, 0.009], harm: 5, vib: 0.3, vibDepth: 0.002, attack: 1.6, octaveUp: false, noiseDb: -1, lp: 3000, sweep: true }),
   rain: () => {
     const n = SR * 30, x = new Float64Array(n);
