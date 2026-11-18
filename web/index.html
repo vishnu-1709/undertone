@@ -232,8 +232,9 @@ function peakEq(x, f, Q, gainDb) {
   for (let i = 0; i < x.length; i++) { const o = (b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0; x2 = x1; x1 = x[i]; y2 = y1; y1 = o; y[i] = o; }
   return y;
 }
-// Tiny phone speakers barely reproduce bass: model as a 24 dB/oct roll-off below ~350 Hz.
-const phoneSpeaker = x => biquad(biquad(x, "hp", 350, 0.7071), "hp", 350, 0.7071);
+// Phone speakers roll off the deep bass. Modelled as 12 dB/oct below ~180 Hz,
+// matched to a real iPhone 17 test (a 350 Hz model was too pessimistic).
+const phoneSpeaker = x => biquad(x, "hp", 180, 0.7071);
 // 4th-order Butterworth, run forwards and backwards (zero phase)
 function butter4(x, type, f) {
   const once = s => biquad(biquad(s, type, f, 0.5412), type, f, 1.3066);
@@ -550,7 +551,7 @@ function predictedLeak(offSamples) {
 // mix in the air (partial cancellation, kV) and the song from the left masks it.
 function leakAt(v, c) { return db(S.kV * v / c); }
 // Thresholds calibrated against a real iPhone test: rain at Normal was barely audible up close.
-const leakColor = d => d < -20 ? "#5fd38d" : d < -10 ? "#ffc46b" : "#ff7a7a";
+const leakColor = d => d < -14 ? "#5fd38d" : d < -6 ? "#ffc46b" : "#ff7a7a";
 function suggest() {
   if (!S.vF || !S.cF) return;
   const vf = S.vF.length, n = Math.max(1, S.cF.length - vf + 1);
@@ -572,8 +573,8 @@ function updatePlaceStatus() {
   if (!S.voiceRaw || !S.coverRaw) { el.textContent = !S.voiceRaw ? "Record your message first." : "Pick a background."; return; }
   const leak = predictedLeak(S.off), worst = leak.reduce((a, b) => Math.max(a, b), -99);
   const t = (S.off / SR).toFixed(1);
-  el.innerHTML = worst < -20 ? `<span class="good">Starts at ${t} s · looks well hidden ✓</span>`
-    : worst < -10 ? `<span class="warn">Starts at ${t} s · a few spots may be faintly heard on two-speaker phones</span>`
+  el.innerHTML = worst < -14 ? `<span class="good">Starts at ${t} s · looks well hidden ✓</span>`
+    : worst < -6 ? `<span class="warn">Starts at ${t} s · a few spots may be faintly heard on two-speaker phones</span>`
     : `<span class="bad">Starts at ${t} s · the song is too quiet under part of your message. Try ✨ Suggest.</span>`;
 }
 
