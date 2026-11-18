@@ -3,148 +3,205 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>undertone</title>
+<title>undertone · hide your voice inside a song</title>
+<meta name="description" content="Make an audio file that plays as a song on speakers and carries your voice in earphones.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=STIX+Two+Text:ital,wght@1,400;1,600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0e0f12; --card:#17191e; --line:#2a2d35; --text:#e9eaee; --dim:#9a9ea9; --accent:#7cc4ff; --good:#5fd38d; --bad:#ff7a7a; --warn:#ffc46b; }
+  :root {
+    --paper: #F2F4EE;      /* engineering pad */
+    --grid: #DCE3D6;
+    --ink: #1D2B45;        /* blue-black */
+    --graphite: #5E6673;
+    --left: #2F5DA8;       /* left channel */
+    --right: #B4472F;      /* right channel */
+    --good: #2F7D4F; --warn: #A8740E; --bad: #B4472F;
+    --line: #C9D1C3;
+    --sans: "Atkinson Hyperlegible", system-ui, sans-serif;
+    --math: "STIX Two Text", "Times New Roman", serif;
+  }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  main { max-width:720px; margin:0 auto; padding:20px 16px 80px; }
-  h1 { font-size:24px; margin:4px 0 2px; letter-spacing:.3px; }
-  .sub { color:var(--dim); margin:0 0 18px; }
-  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); margin:0 0 10px; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  button, select, label.file { background:#22252c; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font:inherit; cursor:pointer; }
-  button:hover, label.file:hover { border-color:#4a4f5c; }
-  button.primary { background:var(--accent); color:#06121d; border-color:var(--accent); font-weight:600; }
-  button.chip.on { border-color:var(--accent); color:var(--accent); }
-  button.rec { border-color:var(--bad); }
-  button.rec.on { background:var(--bad); color:#1a0606; }
-  button:disabled { opacity:.45; cursor:default; }
-  input[type=file] { display:none; }
-  .status { color:var(--dim); font-size:13px; margin-top:8px; min-height:18px; }
-  .meter { height:8px; background:#22252c; border-radius:4px; overflow:hidden; margin-top:10px; display:none; }
-  .meter > div { height:100%; width:0; background:var(--good); transition:width .05s; }
-  .grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; }
-  @media (max-width:520px) { .grid { grid-template-columns:1fr; } }
-  .grid label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--dim); }
-  .grid select, .grid input[type=range] { width:100%; }
-  .check { display:flex; gap:8px; align-items:center; font-size:14px; color:var(--text); margin-top:8px; }
-  canvas { width:100%; height:110px; display:block; background:#111318; border:1px solid var(--line); border-radius:8px; touch-action:none; cursor:grab; }
-  .legend { display:flex; gap:14px; font-size:12px; color:var(--dim); margin-top:6px; flex-wrap:wrap; }
-  .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
-  .result { border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
-  .result .title { font-weight:600; margin-bottom:8px; }
-  .metrics { display:grid; grid-template-columns:repeat(2, 1fr); gap:4px 14px; font-size:13px; margin:10px 0 2px; }
-  .metrics span:nth-child(odd) { color:var(--dim); }
-  .good { color:var(--good); } .bad { color:var(--bad); } .warn { color:var(--warn); }
-  .sim { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:13px; color:var(--dim); margin-top:8px; }
-  .sim input { width:110px; }
-  .hint { font-size:13px; color:var(--dim); margin:8px 0 0; }
-  details summary { cursor:pointer; }
+  html { background: var(--paper); }
+  body { margin: 0; color: var(--ink); font: 17px/1.55 var(--sans); }
+  main { max-width: 640px; margin: 0 auto; padding: 40px 20px 96px; }
+
+  header h1 { font-size: 40px; line-height: 1.1; margin: 0 0 10px; font-weight: 700; letter-spacing: -0.5px; }
+  header p { margin: 0; color: var(--graphite); max-width: 34em; }
+  .brand { font-size: 17px; font-weight: 700; margin: 0 0 28px; }
+
+  figure { margin: 28px 0 8px; }
+  .scope { background-color: #F7F9F4; border: 1px solid var(--line);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px; }
+  #fig { width: 100%; height: 190px; display: block; }
+  figcaption { font-family: var(--math); font-style: italic; font-size: 16px; color: var(--graphite); margin-top: 8px; }
+  figcaption b { font-weight: 600; color: var(--ink); }
+  .eq { font-family: var(--math); font-style: italic; white-space: nowrap; }
+
+  ol.steps { list-style: none; padding: 0; margin: 48px 0 0; counter-reset: step; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 0 0 36px 44px; border-left: 1px solid var(--line); margin-left: 14px; }
+  ol.steps > li:last-child { border-left-color: transparent; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: -15px; top: 0; width: 29px; height: 29px; border-radius: 50%;
+    background: var(--paper); border: 1px solid var(--ink); font-weight: 700; font-size: 15px; display: grid; place-items: center; }
+  h2 { font-size: 21px; margin: 0 0 4px; line-height: 1.3; }
+  .lead { margin: 0 0 14px; color: var(--graphite); font-size: 16px; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, label.file, select { font: inherit; font-size: 16px; color: var(--ink); background: transparent; border: 1px solid var(--ink); border-radius: 3px; padding: 8px 14px; cursor: pointer; }
+  button:hover, label.file:hover { background: #E6EBE1; }
+  button:focus-visible, label.file:focus-within, select:focus-visible, input:focus-visible, canvas:focus-visible { outline: 3px solid var(--left); outline-offset: 2px; }
+  button.primary { background: var(--ink); color: var(--paper); }
+  button.primary:hover { background: #2C3D5E; }
+  button.chip.on { background: var(--ink); color: var(--paper); }
+  button.rec.on { background: var(--right); border-color: var(--right); color: #fff; }
+  button:disabled { opacity: .4; cursor: default; background: transparent; }
+  input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  select { padding: 7px 10px; background: #F7F9F4; }
+
+  .status { color: var(--graphite); font-size: 15px; margin-top: 10px; min-height: 22px; }
+  .good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  .meter { height: 6px; background: var(--grid); margin-top: 12px; display: none; }
+  .meter > div { height: 100%; width: 0; background: var(--good); transition: width .05s linear; }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; margin-top: 14px; color: var(--graphite); }
+  .check input { margin-top: 4px; accent-color: var(--ink); }
+
+  #timeline { width: 100%; height: 120px; display: block; cursor: grab; touch-action: none; border: 1px solid var(--line); background: #F7F9F4; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--graphite); margin-top: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 4px; margin-right: 6px; vertical-align: middle; }
+
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 15px; color: var(--graphite); }
+  details { margin-top: 14px; font-size: 15px; color: var(--graphite); }
+  details summary { cursor: pointer; width: fit-content; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } header h1 { font-size: 32px; } }
+
+  .result { border-top: 1px solid var(--line); padding: 16px 0 4px; margin-top: 16px; }
+  .result .title { font-weight: 700; margin-bottom: 10px; }
+  .metrics { display: grid; grid-template-columns: auto auto; gap: 2px 18px; font-size: 14px; margin-top: 10px; width: fit-content; }
+  .metrics span:nth-child(odd) { color: var(--graphite); }
+  .sim { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 14px; margin-top: 10px; }
+  .sim input { width: 110px; accent-color: var(--ink); }
+  .note { font-size: 15px; color: var(--graphite); margin: 12px 0 0; }
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; color: var(--graphite); }
+  footer p { margin: 0 0 6px; max-width: 36em; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 <script src="vendor/lame.min.js" defer></script>
 </head>
 <body>
 <main>
-  <h1>undertone</h1>
-  <p class="sub">A song on the speaker. Your voice in their earphones.</p>
+  <header>
+    <p class="brand">undertone</p>
+    <h1>Hide your voice inside a song.</h1>
+    <p>Speakers play the song. Earphones play the song and you.</p>
+  </header>
 
-  <section>
-    <h2>1 · Your secret message</h2>
-    <div class="row">
-      <button id="recBtn" class="rec">● Record</button>
-      <label class="file">Upload voice<input id="voiceFile" type="file" accept="audio/*,video/*"></label>
-      <button id="demoVoiceBtn">Test voice</button>
-      <button id="playVoiceBtn" disabled>▶ Hear it</button>
-    </div>
-    <div id="meter" class="meter"><div></div></div>
-    <label class="check"><input id="cleanup" type="checkbox" checked> Clean up my voice (remove background noise, even out loud and soft words)</label>
-    <div id="voiceStatus" class="status">Speak softly in your normal voice, close to the mic.</div>
-  </section>
+  <figure>
+    <div class="scope"><canvas id="fig" aria-label="Your voice in the left channel, flipped in the right channel, and cancelled when a speaker adds them together"></canvas></div>
+    <figcaption>Fig. 1. Your voice goes in as <span class="eq">+V</span> on the left and <span class="eq">−V</span> on the right. A speaker plays <span class="eq">L + R</span>, so the voice adds up to <b>zero</b>. Earphones keep the two sides apart.</figcaption>
+  </figure>
 
-  <section>
-    <h2>2 · Background</h2>
-    <div class="row">
-      <button class="chip" data-preset="lofi">Lo-fi beat</button>
-      <button class="chip" data-preset="upbeat">Upbeat</button>
-      <button class="chip" data-preset="rain">Rain</button>
-      <label class="file">Upload song, podcast or video<input id="coverFile" type="file" accept="audio/*,video/*"></label>
-      <button id="playCoverBtn" disabled>▶ Hear it</button>
-    </div>
-    <div id="coverStatus" class="status">Full, continuous sound hides your voice best on phones (rain, piano, guitar, pads). Any audio works.</div>
-  </section>
+  <ol class="steps">
+    <li>
+      <h2>Record your message</h2>
+      <p class="lead">Speak softly in your normal voice, close to the mic. Short and slow works best.</p>
+      <div class="row">
+        <button id="recBtn" class="rec">Record</button>
+        <label class="file">Upload a recording<input id="voiceFile" type="file" accept="audio/*,video/*"></label>
+        <button id="playVoiceBtn" disabled>Play it back</button>
+        <button id="demoVoiceBtn">Use a test tone</button>
+      </div>
+      <div id="meter" class="meter"><div></div></div>
+      <label class="check"><input id="cleanup" type="checkbox" checked> Clean up the recording: remove background noise and even out loud and soft words.</label>
+      <div id="voiceStatus" class="status"></div>
+    </li>
 
-  <section>
-    <h2>3 · Place your voice</h2>
-    <canvas id="timeline"></canvas>
-    <div class="legend">
-      <span><i style="background:var(--good)"></i>hidden on speakers</span>
-      <span><i style="background:var(--warn)"></i>may be faintly heard on two-speaker phones</span>
-      <span><i style="background:var(--bad)"></i>song too quiet here</span>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button id="suggestBtn" disabled>✨ Suggest best spot</button>
-      <span id="placeStatus" class="status" style="margin:0">Drag your voice onto a loud part of the song.</span>
-    </div>
-  </section>
+    <li>
+      <h2>Choose the song</h2>
+      <p class="lead">Full, continuous sound hides your voice best. Any audio or video works.</p>
+      <div class="row">
+        <button class="chip" data-preset="rain">Rain</button>
+        <button class="chip" data-preset="lofi">Lo-fi beat</button>
+        <button class="chip" data-preset="upbeat">Upbeat</button>
+        <label class="file">Upload a song<input id="coverFile" type="file" accept="audio/*,video/*"></label>
+        <button id="playCoverBtn" disabled>Listen</button>
+      </div>
+      <div id="coverStatus" class="status"></div>
+    </li>
 
-  <section>
-    <h2>4 · Make it</h2>
-    <div class="grid">
-      <label>Secret voice loudness
-        <select id="level">
-          <option value="-8">Soft (best hidden)</option>
-          <option value="-5" selected>Normal</option>
-          <option value="-2">Loud (clearest)</option>
-        </select>
-      </label>
-    </div>
-    <p class="hint">Plays as just the song on speakers. On earphones: song in the left ear, your voice clear in the right.</p>
-    <details class="hint" style="margin-top:10px">
-      <summary>Advanced</summary>
-      <div class="grid" style="margin-top:8px">
-        <label>Voice filter (lower = less leak, more muffled)
-          <select id="lowpass">
-            <option value="0">None</option>
-            <option value="1500">1.5 kHz</option>
-            <option value="1000" selected>1.0 kHz</option>
-            <option value="800">0.8 kHz</option>
-          </select>
-        </label>
-        <label>Quiet-part protection
-          <select id="protect">
-            <option value="1" selected>On (lift quiet parts, voice follows song)</option>
-            <option value="0">Off</option>
-          </select>
-        </label>
-        <label>Fill silence with soft hiss
-          <select id="fill">
-            <option value="0" selected>Off</option>
-            <option value="1">On</option>
-          </select>
-        </label>
-        <label>Leak masking (song swells when you speak)
-          <select id="mask">
-            <option value="0">Off</option>
-            <option value="0.5">Light</option>
-            <option value="1" selected>Normal</option>
-            <option value="2">Strong</option>
+    <li>
+      <h2>Place your voice</h2>
+      <p class="lead">Drag your voice onto a full part of the song. The line under it shows how well it stays hidden on phone speakers.</p>
+      <canvas id="timeline" tabindex="0" aria-label="Song timeline. Drag your voice to move it."></canvas>
+      <div class="legend">
+        <span><i style="background:var(--good)"></i>hidden</span>
+        <span><i style="background:var(--warn)"></i>might be faintly heard up close</span>
+        <span><i style="background:var(--bad)"></i>song too quiet here</span>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="suggestBtn" disabled>Find the best spot</button>
+      </div>
+      <div id="placeStatus" class="status"></div>
+    </li>
+
+    <li>
+      <h2>Make it</h2>
+      <p class="lead">On earphones the song plays on the left and your voice on the right. On a speaker it's just the song.</p>
+      <div class="grid">
+        <label class="field">Voice level
+          <select id="level">
+            <option value="-8">Quieter, best hidden</option>
+            <option value="-5" selected>Balanced</option>
+            <option value="-2">Louder</option>
           </select>
         </label>
       </div>
-    </details>
-    <div class="row" style="margin-top:12px">
-      <button id="renderBtn" class="primary" disabled>Make file</button>
-    </div>
-    <div id="renderStatus" class="status"></div>
-  </section>
+      <details>
+        <summary>More settings</summary>
+        <div class="grid">
+          <label class="field">Voice filter
+            <select id="lowpass">
+              <option value="0">Off</option>
+              <option value="1500">1.5 kHz</option>
+              <option value="1000" selected>1 kHz</option>
+              <option value="800">0.8 kHz</option>
+            </select>
+          </label>
+          <label class="field">Lift quiet parts of the song
+            <select id="protect">
+              <option value="1" selected>On</option>
+              <option value="0">Off</option>
+            </select>
+          </label>
+          <label class="field">Fill silence with soft noise
+            <select id="fill">
+              <option value="0" selected>Off</option>
+              <option value="1">On</option>
+            </select>
+          </label>
+          <label class="field">Song swells while you speak
+            <select id="mask">
+              <option value="0">Off</option>
+              <option value="0.5">A little</option>
+              <option value="1" selected>Some</option>
+              <option value="2">More</option>
+            </select>
+          </label>
+        </div>
+      </details>
+      <div class="row" style="margin-top:16px">
+        <button id="renderBtn" class="primary" disabled>Make the file</button>
+      </div>
+      <div id="renderStatus" class="status"></div>
+      <div id="results"></div>
+    </li>
+  </ol>
 
-  <section>
-    <h2>5 · Listen &amp; send</h2>
-    <p class="hint"><b>▶ Play</b> plays the real file: with earphones you hear the secret voice. <b>Hear it like a speaker</b> previews what people around you hear, even if you're wearing earphones. <b>Download</b> gives you the file to send; it works on its own.</p>
-    <div id="results"></div>
-  </section>
+  <footer>
+    <p>Everything runs in your browser. Your recording and song are never uploaded.</p>
+    <p>Works on any speaker. On phones with two speakers, a very faint voice can slip through in quiet parts of a song.</p>
+  </footer>
 </main>
 
 <script>
@@ -551,7 +608,7 @@ function predictedLeak(offSamples) {
 // mix in the air (partial cancellation, kV) and the song from the left masks it.
 function leakAt(v, c) { return db(S.kV * v / c); }
 // Thresholds calibrated against a real iPhone test: rain at Normal was barely audible up close.
-const leakColor = d => d < -14 ? "#5fd38d" : d < -6 ? "#ffc46b" : "#ff7a7a";
+const leakColor = d => d < -14 ? "#2F7D4F" : d < -6 ? "#A8740E" : "#B4472F";
 function suggest() {
   if (!S.vF || !S.cF) return;
   const vf = S.vF.length, n = Math.max(1, S.cF.length - vf + 1);
@@ -570,12 +627,12 @@ function suggest() {
 }
 function updatePlaceStatus() {
   const el = $("placeStatus");
-  if (!S.voiceRaw || !S.coverRaw) { el.textContent = !S.voiceRaw ? "Record your message first." : "Pick a background."; return; }
+  if (!S.voiceRaw || !S.coverRaw) { el.textContent = !S.voiceRaw ? "Record your message first." : "Choose a song first."; return; }
   const leak = predictedLeak(S.off), worst = leak.reduce((a, b) => Math.max(a, b), -99);
   const t = (S.off / SR).toFixed(1);
-  el.innerHTML = worst < -14 ? `<span class="good">Starts at ${t} s · looks well hidden ✓</span>`
-    : worst < -6 ? `<span class="warn">Starts at ${t} s · a few spots may be faintly heard on two-speaker phones</span>`
-    : `<span class="bad">Starts at ${t} s · the song is too quiet under part of your message. Try ✨ Suggest.</span>`;
+  el.innerHTML = worst < -14 ? `<span class="good">Starts at ${t} s. Well hidden.</span>`
+    : worst < -6 ? `<span class="warn">Starts at ${t} s. A few moments might be faintly heard on phones with two speakers.</span>`
+    : `<span class="bad">Starts at ${t} s. The song is too quiet under part of your message. Try Find the best spot.</span>`;
 }
 
 // ---------------------------------------------------------------- timeline
@@ -584,26 +641,26 @@ function draw() {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
   cv.width = w * dpr; cv.height = h * dpr; g2.setTransform(dpr, 0, 0, dpr, 0, 0);
   g2.clearRect(0, 0, w, h);
-  g2.font = "12px system-ui"; g2.fillStyle = "#9a9ea9";
-  if (!S.cover) { g2.fillText("Pick a background to see it here", 12, h / 2); return; }
+  g2.font = "13px 'Atkinson Hyperlegible', system-ui"; g2.fillStyle = "#5E6673";
+  if (!S.cover) { g2.fillText("Choose a song to see it here", 12, h / 2); return; }
   const n = S.cF.length, mid = h / 2 - 8, bw = w / n;
-  g2.fillStyle = "#3a3f4b";
+  g2.fillStyle = "#C9D2C3";
   for (let i = 0; i < n; i++) {
     const d = db(S.cF[i] / S.cRef), a = Math.max(0, Math.min(1, (d + 40) / 43)) * (mid - 6);
     g2.fillRect(i * bw, mid - a, Math.max(1, bw - 0.5), 2 * a);
   }
   const total = S.cover.length;
-  g2.fillStyle = "#9a9ea9";
+  g2.fillStyle = "#5E6673";
   for (let s = 0; s <= total / SR; s += total / SR > 120 ? 30 : total / SR > 40 ? 10 : 5) {
-    const x = s * SR / total * w; g2.fillRect(x, h - 14, 1, 4); g2.fillText(`${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`, x + 3, h - 3);
+    const x = s * SR / total * w; g2.fillRect(x, h - 20, 1, 5); g2.fillText(`${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`, Math.min(x + 3, w - 34), h - 4);
   }
   if (!S.vScaled) return;
   const x0 = S.off / total * w, x1 = (S.off + S.vScaled.length) / total * w;
-  g2.fillStyle = "rgba(124,196,255,0.18)"; g2.fillRect(x0, 4, x1 - x0, mid * 2 - 4);
-  g2.strokeStyle = "#7cc4ff"; g2.lineWidth = 2; g2.strokeRect(x0, 4, x1 - x0, mid * 2 - 4);
+  g2.fillStyle = "rgba(47,93,168,0.12)"; g2.fillRect(x0, 4, x1 - x0, mid * 2 - 4);
+  g2.strokeStyle = "#2F5DA8"; g2.lineWidth = 2; g2.strokeRect(x0, 4, x1 - x0, mid * 2 - 4);
   const leak = predictedLeak(S.off), fw = (x1 - x0) / leak.length;
   leak.forEach((d, i) => { if (d <= -99) return; g2.fillStyle = leakColor(d); g2.fillRect(x0 + i * fw, mid * 2 + 2, Math.max(1, fw), 6); });
-  g2.fillStyle = "#e9eaee"; g2.fillText("your voice", x0 + 6, 18);
+  g2.fillStyle = "#1D2B45"; g2.fillText("your voice", x0 + 6, 20);
 }
 let drag = null;
 cv.addEventListener("pointerdown", e => {
@@ -663,7 +720,7 @@ function startMeter(stream) {
     an.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; const r = Math.sqrt(s / buf.length);
     bar.style.width = `${Math.min(100, r * 500)}%`; bar.style.background = r > 0.3 ? "var(--bad)" : "var(--good)";
     if (performance.now() - t0 > 1500) { total++; if (r < 0.01) quiet++; }
-    $("voiceStatus").textContent = total > 30 && quiet / total > 0.85 ? "Too quiet: move closer to the mic." : "Recording… speak softly, close to the mic.";
+    $("voiceStatus").textContent = total > 30 && quiet / total > 0.85 ? "Too quiet. Move closer to the mic." : "Recording. Speak softly, close to the mic.";
     meterRaf = requestAnimationFrame(tick);
   };
   tick();
@@ -673,7 +730,7 @@ function voiceLoaded(label) {
   $("voiceStatus").textContent = "Processing…";
   setTimeout(() => {
     S.voiceKey = ""; refresh();
-    $("voiceStatus").textContent = `${label} · ${(S.vBase.length / SR).toFixed(1)} s after trimming`;
+    $("voiceStatus").textContent = `${label}, ${(S.vBase.length / SR).toFixed(1)} s after trimming silence.`;
     $("playVoiceBtn").disabled = false;
     if (S.cover) suggest();
   }, 20);
@@ -682,7 +739,7 @@ function coverLoaded(label) {
   $("coverStatus").textContent = "Preparing…";
   setTimeout(() => {
     S.coverName = label; refresh();
-    $("coverStatus").textContent = `${label} · ${(S.coverRaw.length / SR).toFixed(1)} s`;
+    $("coverStatus").textContent = `${label}, ${(S.coverRaw.length / SR).toFixed(1)} s.`;
     $("playCoverBtn").disabled = false;
     if (S.vScaled) suggest();
   }, 20);
@@ -697,19 +754,19 @@ $("recBtn").onclick = async () => {
     recorder.ondataavailable = e => chunks.push(e.data);
     recorder.onstop = async () => {
       stopMeter(); stream.getTracks().forEach(t => t.stop());
-      $("recBtn").classList.remove("on"); $("recBtn").textContent = "● Record";
+      $("recBtn").classList.remove("on"); $("recBtn").textContent = "Record";
       S.voiceRaw = await decode(await new Blob(chunks, { type: recorder.mimeType }).arrayBuffer());
       voiceLoaded("Recorded");
     };
     recorder.start(); startMeter(stream);
-    $("recBtn").classList.add("on"); $("recBtn").textContent = "■ Stop";
-  } catch (e) { $("voiceStatus").textContent = "Mic blocked: allow the microphone, or upload a file. (Needs https.)"; }
+    $("recBtn").classList.add("on"); $("recBtn").textContent = "Stop recording";
+  } catch (e) { $("voiceStatus").textContent = "The microphone is blocked. Allow it in your browser settings, or upload a recording."; }
 };
 $("voiceFile").onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   $("voiceStatus").textContent = "Decoding…";
   try { S.voiceRaw = await decode(await f.arrayBuffer()); voiceLoaded(f.name); }
-  catch (err) { $("voiceStatus").textContent = "Couldn't read that file. Try mp3, m4a, wav or mp4."; }
+  catch (err) { $("voiceStatus").textContent = "That file couldn't be read. Use mp3, m4a, wav or mp4."; }
 };
 $("demoVoiceBtn").onclick = () => {
   const n = SR * 5, v = new Float64Array(n); let ph = 0;
@@ -718,7 +775,7 @@ $("demoVoiceBtn").onclick = () => {
     let s = 0; for (let k = 1; k < 20; k++) s += Math.sin(k * ph) / k;
     v[i] = s * Math.max(0, Math.sin(2 * Math.PI * 4 * t)) ** 2;
   }
-  S.voiceRaw = v; voiceLoaded("Test voice (buzzy syllables)");
+  S.voiceRaw = v; voiceLoaded("Test tone");
 };
 document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
   document.querySelectorAll("[data-preset]").forEach(x => x.classList.toggle("on", x === b));
@@ -729,7 +786,7 @@ $("coverFile").onchange = async e => {
   document.querySelectorAll("[data-preset]").forEach(x => x.classList.remove("on"));
   $("coverStatus").textContent = "Decoding…";
   try { S.coverRaw = await decode(await f.arrayBuffer()); coverLoaded(f.name); }
-  catch (err) { $("coverStatus").textContent = "Couldn't read that file. Try mp3, m4a, wav or mp4."; }
+  catch (err) { $("coverStatus").textContent = "That file couldn't be read. Use mp3, m4a, wav or mp4."; }
 };
 $("playVoiceBtn").onclick = () => play([S.vBase]);
 $("playCoverBtn").onclick = () => play([S.coverRaw.subarray(0, SR * 15)]);
@@ -742,25 +799,25 @@ function addResult() {
   const r = render(), box = document.createElement("div"); box.className = "result";
   const label = { "-8": "soft", "-5": "normal", "-2": "loud" }[$("level").value];
   box.innerHTML = `
-    <div class="title">${S.coverName} · ${label} voice · from ${(S.off / SR).toFixed(1)} s</div>
+    <div class="title">${S.coverName}, voice from ${(S.off / SR).toFixed(1)} s</div>
     <div class="row">
-      <button data-a="ear" class="primary">▶ Play (wear earphones)</button>
-      <button data-a="spk">Hear it like a speaker</button>
-      <button data-a="stop">■ Stop</button>
+      <button data-a="ear" class="primary">Play with earphones</button>
+      <button data-a="spk">Play as a speaker would</button>
+      <button data-a="stop">Stop</button>
     </div>
     <div class="row" style="margin-top:8px">
-      <button data-a="share" class="primary">📤 Send</button>
-      <button data-a="dl">⬇ Download MP3</button>
+      <button data-a="share" class="primary">Send</button>
+      <button data-a="dl">Download MP3</button>
     </div>
-    <details class="hint" style="margin-top:8px"><summary>Test tools</summary>
+    <details><summary>Testing tools</summary>
       <div class="row" style="margin-top:8px">
-        <button data-a="sim">Two-speaker phone sim</button>
-        <button data-a="L">Left ear only</button>
-        <button data-a="R">Right ear only</button>
-        <button data-a="wav">⬇ WAV (lossless)</button>
+        <button data-a="sim">Phone with two speakers</button>
+        <button data-a="L">Left only</button>
+        <button data-a="R">Right only</button>
+        <button data-a="wav">Download WAV</button>
       </div>
-      <div class="sim">Sim: ear offset <input data-s="delay" type="range" min="0" max="20" value="8"> <span data-o="delay"></span>
-        · far speaker <input data-s="gain" type="range" min="40" max="100" value="70"> <span data-o="gain"></span></div>
+      <div class="sim">Ear offset <input data-s="delay" type="range" min="0" max="20" value="8"> <span data-o="delay"></span>
+        far speaker <input data-s="gain" type="range" min="40" max="100" value="70"> <span data-o="gain"></span></div>
       <div class="metrics"></div>
     </details>`;
   const $$ = q => box.querySelector(q);
@@ -772,8 +829,8 @@ function addResult() {
     $$('[data-o="gain"]').textContent = `${Math.round(g * 100)}%`;
     m = metrics(r, d, g);
     $$(".metrics").innerHTML = `
-      <span>Voice on 1 speaker</span><span class="${cls(m.leakMono, -40)}">${fmt(m.leakMono)}</span>
-      <span>Voice on 2-speaker sim</span><span class="${cls(m.leakSim, -25)}">${fmt(m.leakSim)}</span>
+      <span>Voice on one speaker</span><span class="${cls(m.leakMono, -40)}">${fmt(m.leakMono)}</span>
+      <span>Voice on two speakers</span><span class="${cls(m.leakSim, -25)}">${fmt(m.leakSim)}</span>
       <span>Voice in left ear</span><span>${fmt(m.vL)}</span>
       <span>Voice in right ear</span><span>${fmt(m.vR)}</span>`;
   };
@@ -793,16 +850,47 @@ function addResult() {
       const file = new File([getMp3()], "undertone.mp3", { type: "audio/mpeg" });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         navigator.share({ files: [file], text: "🎧 put both earbuds in" }).catch(() => {});
-      } else { saveBlob(file, "undertone.mp3"); $("renderStatus").textContent = "Sharing isn't supported here, so it was downloaded. Send it from your chat app."; }
+      } else { saveBlob(file, "undertone.mp3"); $("renderStatus").textContent = "This browser can't share files, so it was downloaded. Send it from your chat app."; }
     }
   });
   $("results").prepend(box);
 }
 $("renderBtn").onclick = () => {
-  $("renderStatus").textContent = "Making…";
-  setTimeout(() => { const t = performance.now(); addResult(); $("renderStatus").textContent = `Done in ${((performance.now() - t) / 1000).toFixed(1)} s`; }, 20);
+  $("renderStatus").textContent = "Making the file…";
+  setTimeout(() => { const t = performance.now(); addResult(); $("renderStatus").textContent = "Done. Put earphones on and press Play, then try it on a speaker."; }, 20);
 };
 draw();
+
+// ------------------------------------------------------------------ fig. 1
+// L carries +V, R carries −V, a speaker plays L + R: the voice sums to zero.
+const fc = $("fig"), fx = fc.getContext("2d"), still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let figT = 0;
+function figVoice(t) { // speech-like wiggle, or the user's own recording once there is one
+  if (S.vBase && S.vBase.length > SR) { const i = Math.floor(((t * 2400) % (S.vBase.length - 1) + S.vBase.length) % S.vBase.length); return S.vBase[i] * 1.1; }
+  const env = Math.max(0, Math.sin(t * 1.3)) ** 1.5 * (0.6 + 0.4 * Math.sin(t * 0.41));
+  return env * (Math.sin(t * 9) * 0.6 + Math.sin(t * 18 + 1) * 0.28 + Math.sin(t * 27 + 2) * 0.12);
+}
+function drawFig() {
+  const dpr = window.devicePixelRatio || 1, w = fc.clientWidth, h = fc.clientHeight;
+  if (fc.width !== w * dpr) { fc.width = w * dpr; fc.height = h * dpr; }
+  fx.setTransform(dpr, 0, 0, dpr, 0, 0); fx.clearRect(0, 0, w, h);
+  const rows = [{ y: h * 0.2, s: 1, c: "#2F5DA8", label: "L" }, { y: h * 0.5, s: -1, c: "#B4472F", label: "R" }, { y: h * 0.8, s: 0, c: "#1D2B45", label: "L + R" }];
+  const x0 = 64, span = w - x0 - 16, amp = h * 0.11;
+  fx.font = "italic 17px 'STIX Two Text', serif"; fx.textBaseline = "middle";
+  for (const r of rows) {
+    fx.fillStyle = r.c; fx.fillText(r.label, 14, r.y);
+    fx.strokeStyle = r.c; fx.lineWidth = r.s === 0 ? 2 : 1.6; fx.beginPath();
+    for (let x = 0; x <= span; x += 1) { const v = r.s * figVoice(figT + x / span * 6); const y = r.y - v * amp; x ? fx.lineTo(x0 + x, y) : fx.moveTo(x0 + x, y); }
+    fx.stroke();
+  }
+  fx.font = "italic 15px 'STIX Two Text', serif"; fx.fillStyle = "#5E6673"; fx.textAlign = "right";
+  fx.fillText("+V", w - 14, rows[0].y - amp - 4); fx.fillText("−V", w - 14, rows[1].y - amp - 4); fx.fillText("= 0", w - 14, rows[2].y - 14);
+  fx.textAlign = "left";
+}
+function figLoop() { figT += 0.012; drawFig(); requestAnimationFrame(figLoop); }
+document.fonts && document.fonts.ready.then(drawFig);
+if (still) { drawFig(); window.addEventListener("resize", drawFig); } else figLoop();
+
 </script>
 </body>
 </html>
