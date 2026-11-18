@@ -128,6 +128,8 @@
         <button class="chip" data-preset="fireplace">Fireplace</button>
         <button class="chip" data-preset="cafe">Café</button>
         <button class="chip" data-preset="piano">Soft piano</button>
+        <button class="chip" data-preset="strings">Strings</button>
+        <button class="chip" data-preset="pad">Ambient pad</button>
         <label class="file">Upload a song<input id="coverFile" type="file" accept="audio/*,video/*"></label>
         <button id="playCoverBtn" disabled>Listen</button>
       </div>
@@ -578,6 +580,29 @@ function wobble(n, rateHz, lo) {
   for (let i = 0; i < n; i++) { if (i % step === 0) { a = b; b = Math.random(); } const t = (i % step) / step, s = a + (b - a) * (0.5 - 0.5 * Math.cos(Math.PI * t)); out[i] = lo + (1 - lo) * s; }
   return out;
 }
+// Sustained chord ensemble used by Strings and Ambient pad.
+function ensemble(o) {
+  // one pass through the 4 chords, then looped (the chords repeat anyway)
+  const chordLen = 4.2, seconds = 4 * chordLen, n = Math.round(seconds * SR), x = new Float64Array(n);
+  for (let c = 0; c < 4; c++) {
+    const t0 = c * chordLen, ch = CHORDS[c % 4], notes = o.octaveUp ? [...ch, ch[2] * 2] : [ch[0] / 2, ...ch];
+    const s0 = Math.round(t0 * SR), len = Math.round((chordLen + 1.2) * SR);   // overlaps the next chord
+    for (const f of notes) for (const dt of o.detunes) {
+      const ph = Math.random(), vph = Math.random(), a = 0.06 / Math.sqrt(o.detunes.length);
+      for (let i = 0; i < len && s0 + i < n; i++) {
+        const u = i / SR, env = Math.min(1, u / o.attack) * Math.min(1, Math.max(0, (len / SR - u) / 1.2));
+        const fr = f * (1 + dt) * (1 + o.vibDepth * fsin(vph + o.vib * u));
+        let v = 0; for (let k = 1; k <= o.harm; k++) v += fsin(fr * k * u + ph * k) / k;
+        x[s0 + i] += a * env * v;
+      }
+    }
+  }
+  let y = butter4(x, "lp", o.lp);
+  if (o.sweep) { const w = wobble(n, 0.12, 0.5); y = y.map((v, i) => v * w[i]); }
+  const air = butter4(butter4(pinkNoise(n), "hp", 250), "lp", 3500), k = activeRms(y) * Math.pow(10, o.noiseDb / 20) / (rms(air) + 1e-12);
+  for (let i = 0; i < n; i++) y[i] += air[i] * k;
+  return finish(fitLength(y, n * 2, Math.round(0.6 * SR)));
+}
 const PRESET_CACHE = {};
 const CHORDS = [[220, 261.6, 329.6, 392], [174.6, 220, 261.6, 329.6], [130.8, 164.8, 196, 246.9], [196, 246.9, 293.7, 349.2]];
 const PRESETS = {
@@ -649,10 +674,14 @@ const PRESETS = {
       if (j % 8 === 0) key(t, ch[0] / 2, 0.22);
     }
     // soft rain against the window keeps the voice's range covered between notes
-    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(x) * Math.pow(10, -6 / 20) / (rms(bed) + 1e-12);
+    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(x) * Math.pow(10, -4 / 20) / (rms(bed) + 1e-12);
     for (let i = 0; i < n; i++) x[i] += bed[i] * k;
     return finish(x);
   },
+  // Continuous instrumentals: dense, detuned, slowly moving chords that never stop,
+  // with a little bow / air noise so they cover a voice like noise does.
+  strings: () => ensemble({ detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -4, lp: 4500 }),
+  pad: () => ensemble({ detunes: [-0.008, -0.003, 0.004, 0.009], harm: 5, vib: 0.3, vibDepth: 0.002, attack: 1.6, octaveUp: false, noiseDb: -3, lp: 3000, sweep: true }),
   rain: () => {
     const n = SR * 30, x = new Float64Array(n);
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
