@@ -68,8 +68,8 @@
     <div class="grid">
       <label>Secret voice loudness
         <select id="level">
-          <option value="-8">Soft (best hidden)</option>
-          <option value="-5" selected>Normal</option>
+          <option value="-8" selected>Soft (best hidden)</option>
+          <option value="-5">Normal</option>
           <option value="-2">Loud (clearest)</option>
         </select>
       </label>
@@ -79,17 +79,25 @@
       <div class="grid" style="margin-top:8px">
         <label>Mode
           <select id="mode">
+            <option value="oneear" selected>One-ear · right ear hears only the voice</option>
             <option value="classic">Classic · cover in both ears</option>
-            <option value="oneear">One-ear · right ear hears only the voice</option>
             <option value="perslice">Per-slice · cover steps aside for the voice</option>
           </select>
         </label>
         <label>Voice filter (lower = less leak, more muffled)
           <select id="lowpass">
             <option value="0">None</option>
-            <option value="1500" selected>1.5 kHz</option>
-            <option value="1000">1.0 kHz</option>
+            <option value="1500">1.5 kHz</option>
+            <option value="1000" selected>1.0 kHz</option>
             <option value="800">0.8 kHz</option>
+          </select>
+        </label>
+        <label>Leak masking (cover swells when you speak)
+          <select id="mask">
+            <option value="0">Off</option>
+            <option value="0.5">Light</option>
+            <option value="1" selected>Normal</option>
+            <option value="2">Strong</option>
           </select>
         </label>
       </div>
@@ -259,7 +267,18 @@ function perslice(c, v, strength = 4) {
 }
 
 // ---------------------------------------------------------------- render
-function render(voiceIn, coverIn, mode, levelDb, lowpass) {
+// Dynamic masking: while the voice speaks, add extra cover in the voice's
+// frequency band so any leak from two spaced speakers gets buried.
+function maskCover(c, v, amount) {
+  const band = butter4(butter4(c, "hp", 250), "lp", 2000);
+  const env = new Float64Array(v.length), att = Math.exp(-1 / (0.01 * SR)), rel = Math.exp(-1 / (0.15 * SR));
+  let e = 0;
+  for (let i = 0; i < v.length; i++) { const a = Math.abs(v[i]); e = a > e ? att * e + (1 - att) * a : rel * e + (1 - rel) * a; env[i] = e; }
+  const ref = activeRms(v) * 1.4 + 1e-12, out = new Float64Array(c.length);
+  for (let i = 0; i < c.length; i++) out[i] = c[i] + amount * Math.min(1, env[i] / ref) * band[i];
+  return out;
+}
+function render(voiceIn, coverIn, mode, levelDb, lowpass, mask = 1) {
   let v = butter4(voiceIn, "hp", 120);
   if (lowpass) v = butter4(v, "lp", lowpass);
   const lead = SR * 1.5, tail = SR * 1.5, n = lead + v.length + tail;
@@ -268,6 +287,7 @@ function render(voiceIn, coverIn, mode, levelDb, lowpass) {
   const vf = new Float64Array(n); vf.set(v, lead);
   const g = activeRms(c) * Math.pow(10, levelDb / 20) / (activeRms(v) + 1e-12);
   for (let i = 0; i < n; i++) vf[i] *= g;
+  if (mask > 0) c = maskCover(c, vf, mask);
   fade(c); fade(vf);
   let L, R;
   if (mode === "classic") { L = c.map((x, i) => x + vf[i]); R = c.map((x, i) => x - vf[i]); }
@@ -364,7 +384,7 @@ $("playVoiceBtn").onclick = () => play([voice]);
 $("playCoverBtn").onclick = () => play([cover.subarray(0, SR * 10)]);
 
 function addResult(mode, level, lp) {
-  const r = render(voice, cover, mode, level, lp);
+  const r = render(voice, cover, mode, level, lp, +$("mask").value);
   const box = document.createElement("div"); box.className = "result";
   const name = `undertone ${mode} ${{ "-8": "soft", "-5": "normal", "-2": "loud" }[level] || "v" + -level}.wav`;
   box.innerHTML = `
