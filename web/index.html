@@ -128,14 +128,8 @@
         <button class="chip" data-preset="rain">Rain</button>
         <button class="chip" data-preset="stringsDrive">Cinematic strings</button>
         <button class="chip" data-preset="piano">Soft piano</button>
-        <button class="chip" data-preset="pianoFast">Energetic piano</button>
         <button class="chip" data-preset="strings">Strings</button>
         <button class="chip" data-preset="pad">Ambient pad</button>
-        <button class="chip" data-preset="lofi">Lo-fi beat</button>
-        <button class="chip" data-preset="upbeat">Upbeat</button>
-        <button class="chip" data-preset="cafe">Café</button>
-        <button class="chip" data-preset="fireplace">Fireplace</button>
-        <button class="chip" data-preset="ocean">Ocean</button>
         <label class="file">Upload a song<input id="coverFile" type="file" accept="audio/*,video/*"></label>
         <button id="playCoverBtn" disabled>Listen</button>
       </div>
@@ -548,27 +542,6 @@ function processVoice(raw, cleanup, lowpass) {
 // Generated backgrounds. Built to hide a voice like rain does: a continuous
 // texture in the voice's frequency range plus chords that sustain, so there
 // are no gaps where one phone speaker plays the voice alone.
-function synth(seconds, bpm, pattern, textureDb = null) {
-  const n = Math.round(seconds * SR), x = new Float64Array(n), beat = 60 / bpm;
-  const add = (t, f) => { const s = Math.round(t * SR); for (let i = 0; s + i < n && i < SR * 8; i++) { const v = f(i / SR); if (v === null) break; x[s + i] += v; } };
-  const kick = (t, a = 0.9) => add(t, u => u > 0.35 ? null : a * Math.sin(2 * Math.PI * (50 * u + 60 * (1 - Math.exp(-u * 25)) / 25 * 25 * 0.04 + 45 * u)) * Math.exp(-u * 9));
-  const snare = (t, a = 1) => add(t, u => u > 0.2 ? null : a * ((Math.random() * 2 - 1) * 0.35 * Math.exp(-u * 22) + 0.15 * Math.sin(2 * Math.PI * 190 * u) * Math.exp(-u * 30)));
-  const hat = (t, a = 0.08, len = 0.05) => add(t, u => u > len ? null : (Math.random() * 2 - 1) * a * Math.exp(-u * (4.5 / len)));
-  const tone = (f, u, harm) => { let s = 0; for (let k = 1; k <= harm; k++) s += fsin(f * k * u) / k; return s; };
-  const note = (t, f, dur, a, harm = 4) => add(t, u => u > dur ? null : a * Math.min(1, u * 30) * Math.min(1, (dur - u) * 8) * tone(f, u, harm));
-  // pad: slow fade in and out, slightly detuned pair, overlaps the next chord
-  const pad = (t, fs, dur, a) => add(t, u => u > dur + 0.5 ? null : a * Math.min(1, u / 0.25) * Math.min(1, Math.max(0, dur + 0.5 - u) / 0.5) * fs.reduce((s, f) => s + tone(f, u, 5) + tone(f * 1.004, u, 5), 0) / 2);
-  pattern({ kick, snare, hat, note, pad, beat, bars: Math.floor(seconds / (4 * beat)) });
-  if (textureDb !== null) {
-    // continuous texture across the voice's range (150-3500 Hz), like soft rain or vinyl hiss
-    let b0 = 0, b1 = 0, b2 = 0; const tex = new Float64Array(n);
-    for (let i = 0; i < n; i++) { const w = Math.random() * 2 - 1; b0 = 0.99765 * b0 + w * 0.099046; b1 = 0.963 * b1 + w * 0.2965164; b2 = 0.57 * b2 + w * 1.0526913;
-      tex[i] = b0 + b1 + b2 + w * 0.1848 + (Math.random() < 0.0006 ? (Math.random() - 0.5) * 6 : 0); }
-    const band = butter4(butter4(tex, "hp", 150), "lp", 3500), k = activeRms(x) * Math.pow(10, textureDb / 20) / (rms(band) + 1e-12);
-    for (let i = 0; i < n; i++) x[i] += band[i] * k;
-  }
-  const p = peak(x); return x.map(s => s / (p + 1e-12) * 0.8);
-}
 // Fast sine from a table; argument in cycles (frequency × time).
 const SIN_N = 16384, SIN_T = Float64Array.from({ length: SIN_N }, (_, i) => Math.sin(2 * Math.PI * i / SIN_N));
 const fsin = c => SIN_T[((c * SIN_N) | 0) & (SIN_N - 1)];
@@ -578,7 +551,6 @@ function pinkNoise(n) {
   for (let i = 0; i < n; i++) { const w = Math.random() * 2 - 1; b0 = 0.99765 * b0 + w * 0.099046; b1 = 0.963 * b1 + w * 0.2965164; b2 = 0.57 * b2 + w * 1.0526913; x[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2; }
   return x;
 }
-function brownNoise(n) { const x = new Float64Array(n); let b = 0; for (let i = 0; i < n; i++) { b = 0.996 * b + 0.06 * (Math.random() * 2 - 1); x[i] = b; } return x; }
 const finish = x => { const p = peak(x); return x.map(v => v / (p + 1e-12) * 0.8); };
 // Slow random wobble between lo and 1 (never drops to silence).
 function wobble(n, rateHz, lo) {
@@ -701,60 +673,6 @@ function band(o) {
 const PRESET_CACHE = {};
 const CHORDS = [[220, 261.6, 329.6, 392], [174.6, 220, 261.6, 329.6], [130.8, 164.8, 196, 246.9], [196, 246.9, 293.7, 349.2]];
 const PRESETS = {
-  lofi: () => synth(32, 80, ({ kick, snare, hat, note, pad, beat, bars }) => {
-    for (let b = 0; b < bars; b++) {
-      const t0 = b * 4 * beat, ch = CHORDS[b % 4];
-      pad(t0, ch, 4 * beat, 0.07);
-      ch.forEach((f, i) => note(t0 + i * 0.03, f * 2, 4 * beat, 0.035, 3));
-      note(t0, ch[0] / 2, 2 * beat, 0.26, 2); note(t0 + 2 * beat, ch[0] / 2, 2 * beat, 0.22, 2);
-      kick(t0, 0.7); kick(t0 + 2.5 * beat, 0.6); snare(t0 + beat, 0.8); snare(t0 + 3 * beat, 0.8);
-      for (let h = 0; h < 8; h++) hat(t0 + h * beat / 2, h % 2 ? 0.04 : 0.06);
-    }
-  }, -6),
-  upbeat: () => synth(32, 112, ({ kick, snare, hat, note, pad, beat, bars }) => {
-    for (let b = 0; b < bars; b++) {
-      const t0 = b * 4 * beat, ch = CHORDS[b % 4];
-      pad(t0, ch.map(f => f * 2), 4 * beat, 0.05);
-      for (let q = 0; q < 4; q++) { kick(t0 + q * beat); ch.forEach(f => note(t0 + q * beat + beat / 2, f * 2, beat * 0.45, 0.035, 3)); }
-      snare(t0 + beat); snare(t0 + 3 * beat);
-      for (let e = 0; e < 8; e++) note(t0 + e * beat / 2, ch[0] / 2, beat * 0.48, 0.22, 2);
-      for (let h = 0; h < 16; h++) hat(t0 + h * beat / 4, h % 4 === 2 ? 0.09 : 0.06, 0.09);
-    }
-  }, -8),
-  ocean: () => {
-    const n = SR * 40, body = butter4(pinkNoise(n), "lp", 2200), foam = butter4(pinkNoise(n), "hp", 1800), x = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-      const t = i / SR, w = 0.5 + 0.5 * Math.sin(2 * Math.PI * t / 8.5) * 0.6 + 0.5 * Math.sin(2 * Math.PI * t / 13 + 1) * 0.4;
-      const swell = 0.55 + 0.45 * w;                       // waves rise and fall but never go quiet
-      x[i] = body[i] * swell + foam[i] * 0.35 * swell * swell;
-    }
-    return finish(x);
-  },
-  fireplace: () => {
-    const n = SR * 30, rumble = butter4(brownNoise(n), "lp", 500), mid = butter4(butter4(pinkNoise(n), "hp", 200), "lp", 2500), hiss = butter4(pinkNoise(n), "hp", 2500);
-    const flick = wobble(n, 3, 0.6), crackle = wobble(n, 30, 0.55), x = new Float64Array(n);
-    // the mid range is a fine, flickering crackle (burning wood) rather than flat hiss
-    for (let i = 0; i < n; i++) x[i] = rumble[i] * 0.6 + mid[i] * 0.95 * flick[i] * crackle[i] + hiss[i] * 0.2;
-    for (let c = 0; c < n / SR * 12; c++) {                  // crackles and pops
-      const s0 = Math.floor(Math.random() * (n - SR)), len = Math.floor(SR * (0.002 + Math.random() * 0.012)), a = 0.4 + Math.random() * (Math.random() < 0.15 ? 2.5 : 0.8);
-      for (let i = 0; i < len; i++) x[s0 + i] += (Math.random() * 2 - 1) * a * Math.exp(-i / (len / 3));
-    }
-    return finish(x);
-  },
-  cafe: () => {
-    const n = SR * 30, room = butter4(pinkNoise(n), "lp", 4000), x = new Float64Array(n);
-    for (let i = 0; i < n; i++) x[i] = room[i] * 0.25;
-    for (let v = 0; v < 6; v++) {                            // distant chatter: speech-shaped noise with syllable rhythm
-      const lo = 250 + Math.random() * 150, voice = butter4(butter4(pinkNoise(n), "hp", lo), "lp", 2200 + Math.random() * 800);
-      const syl = wobble(n, 3 + Math.random() * 3, 0.25), phrase = wobble(n, 0.3 + Math.random() * 0.3, 0.35), a = 0.35 + Math.random() * 0.35;
-      for (let i = 0; i < n; i++) x[i] += voice[i] * syl[i] * phrase[i] * a;
-    }
-    for (let c = 0; c < 10; c++) {                           // cups and spoons
-      const s0 = Math.floor(Math.random() * (n - SR)), f = 2400 + Math.random() * 2400, a = 0.05 + Math.random() * 0.06;
-      for (let i = 0; i < SR * 0.4; i++) { const u = i / SR; x[s0 + i] += a * Math.exp(-u * 14) * (fsin(f * u) + 0.5 * fsin(f * 2.7 * u)); }
-    }
-    return finish(x);
-  },
   piano: () => {
     // Rolling two-hand arpeggios with the pedal down, then a hall reverb that
     // blurs the notes into one continuous wash (a struck string can't sustain alone).
@@ -779,32 +697,6 @@ const PRESETS = {
     for (let i = 0; i < n; i++) z[i] += bed[i] * k;                                 // just a little rain on the window
     return finish(z);
   },
-  pianoFast: () => {
-    // Rolling two-hand arpeggios with the pedal down, then a hall reverb that
-    // blurs the notes into one continuous wash (a struck string can't sustain alone).
-    const n = SR * 32, x = new Float64Array(n), step = 0.125;          // fast flowing 16th notes
-    const key = (t, f, a) => {
-      const s0 = Math.round(t * SR), fk = [], d = [], r = [];
-      for (let k = 1; k <= 6; k++) { fk.push(f * k * (1 + 0.0004 * k * k)); d.push(1 / (k * k)); r.push(Math.exp(-(0.5 + 0.45 * k) / SR)); }
-      for (let i = 0; i < SR * 2.5 && s0 + i < n; i++) { const u = i / SR; let v = 0;
-        for (let k = 0; k < 6; k++) { v += fsin(fk[k] * u) * d[k]; d[k] *= r[k]; }   // each harmonic decays at its own rate
-        x[s0 + i] += a * Math.min(1, u * 200) * v; }
-    };
-    for (let t = 0, j = 0; t < 31.5; t += step, j++) {
-      const ch = CHORDS[Math.floor(t / (32 * step)) % 4];
-      const up = [ch[0], ch[1], ch[2], ch[3], ch[2] * 2, ch[3], ch[2], ch[1]];        // right hand rolls up and down
-      key(t, up[j % 8], 0.13 + 0.04 * Math.random());
-      if (j % 2 === 0) key(t, [ch[0], ch[2], ch[1], ch[2]][(j / 2) % 4] / 2, 0.12);   // left hand keeps moving too
-    }
-    const wet = reverb(x), y = new Float64Array(n);
-    for (let i = 0; i < n; i++) y[i] = x[i] * 0.7 + wet[i] * 0.9;
-    const z = withTexture(y, -10);                                                    // a soft wash of the piano itself
-    const bed = butter4(butter4(pinkNoise(n), "hp", 150), "lp", 3500), k = activeRms(z) * Math.pow(10, -26 / 20) / (rms(bed) + 1e-12);
-    for (let i = 0; i < n; i++) z[i] += bed[i] * k;                                 // just a little rain on the window
-    return finish(z);
-  },
-  // Continuous instrumentals: dense, detuned, slowly moving chords that never stop,
-  // with a little bow / air noise so they cover a voice like noise does.
   strings: () => ensemble({ detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -4, lp: 4500 }),
   stringsDrive: () => ensemble({ ostinato: true, detunes: [-0.006, -0.002, 0.003, 0.007], harm: 6, vib: 5.2, vibDepth: 0.004, attack: 0.9, octaveUp: true, noiseDb: -10, airDb: -26, lp: 4500 }),
   pad: () => ensemble({ detunes: [-0.008, -0.003, 0.004, 0.009], harm: 5, vib: 0.3, vibDepth: 0.002, attack: 1.6, octaveUp: false, noiseDb: -1, lp: 3000, sweep: true }),
