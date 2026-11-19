@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>undertone · hide your voice inside a song</title>
+<title>undertone · hide a secret message in an audio file</title>
 <meta name="description" content="Make an audio file that plays as a song on speakers and carries your voice in earphones.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,7 +93,7 @@
 <main>
   <header>
     <p class="brand">undertone</p>
-    <h1>Hide your voice inside a song.</h1>
+    <h1>Hide a secret message in an audio file.</h1>
     <p>Speakers play the song. Earphones play the song and you.</p>
   </header>
 
@@ -105,7 +105,7 @@
   <ol class="steps">
     <li>
       <h2>Record your message</h2>
-      <p class="lead">Speak softly in your normal voice, close to the mic. Short and slow works best.</p>
+      <p class="lead">Speak normally and clearly, close to the mic. Short and slow works best.</p>
       <div class="row">
         <button id="recBtn" class="rec">Record</button>
         <label class="file">Upload a recording<input id="voiceFile" type="file" accept="audio/*,video/*"></label>
@@ -119,7 +119,7 @@
 
     <li>
       <h2>Choose the song</h2>
-      <p class="lead">Full, continuous sound hides your voice best. Any audio or video works.</p>
+      <p class="lead">Full, continuous sound hides your voice best. Energetic piano is our pick, or use any audio or video.</p>
       <div class="row">
         <button class="chip" data-preset="rain">Rain</button>
         <button class="chip" data-preset="lofi">Lo-fi beat</button>
@@ -972,10 +972,10 @@ function startMeter(stream) {
     const loud = smooth > LOUD_RMS, quiet = heard > 40 && speech < QUIET_RMS;
     bar.style.width = `${Math.min(100, r * 400)}%`; bar.style.background = loud || quiet ? "var(--warn)" : "var(--good)";
     st.className = loud || quiet ? "status warn" : "status";
-    st.textContent = loud ? "Too loud to stay hidden. Speak softer."
+    st.textContent = loud ? "Too loud to stay hidden. Speak a little softer."
       : quiet ? "Too quiet. Speak a little louder or move closer to the mic."
       : performance.now() - t0 > 1500 && !heard ? "Can't hear you. Check the mic."
-      : "Recording. Speak softly, close to the mic.";
+      : "Recording. Speak normally and clearly, close to the mic.";
     meterRaf = requestAnimationFrame(tick);
   };
   tick();
@@ -994,7 +994,7 @@ function voiceLoaded(label) {
     const st = $("voiceStatus");
     st.className = loud || quiet ? "status warn" : "status";
     st.textContent = loud
-      ? "This was recorded loudly, so it may be faintly heard on phone speakers. Record again more softly for the best result."
+      ? "This was recorded loudly, so it may be faintly heard on phone speakers. Record again in your normal voice for the best result."
       : quiet ? "This was recorded very quietly, so it may be hard to hear in earphones. Record again a little louder."
       : `${label}, ${(S.vBase.length / SR).toFixed(1)} s after trimming silence.`;
     $("playVoiceBtn").disabled = false;
