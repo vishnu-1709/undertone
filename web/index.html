@@ -961,18 +961,21 @@ let meterRaf = null;
 function startMeter(stream) {
   const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser(); an.fftSize = 1024; src.connect(an);
   const buf = new Float32Array(an.fftSize), bar = $("meter").firstElementChild, t0 = performance.now();
-  let quiet = 0, total = 0, smooth = 0;
+  let smooth = 0, speech = 0, heard = 0;
   $("meter").style.display = "block";
   const st = $("voiceStatus");
   const tick = () => {
     an.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; const r = Math.sqrt(s / buf.length);
     smooth = 0.93 * smooth + 0.07 * r;                       // ~0.5 s average
-    const loud = smooth > LOUD_RMS;
-    bar.style.width = `${Math.min(100, r * 500)}%`; bar.style.background = loud ? "var(--warn)" : "var(--good)";
-    if (performance.now() - t0 > 1500) { total++; if (r < 0.01) quiet++; }
-    st.className = loud ? "status warn" : "status";
+    // Speech level: only follows frames above room noise, so pauses between words don't count as "quiet".
+    if (r > 0.006 && performance.now() - t0 > 800) { speech = heard ? 0.97 * speech + 0.03 * r : r; heard++; }
+    const loud = smooth > LOUD_RMS, quiet = heard > 40 && speech < QUIET_RMS;
+    bar.style.width = `${Math.min(100, r * 400)}%`; bar.style.background = loud || quiet ? "var(--warn)" : "var(--good)";
+    st.className = loud || quiet ? "status warn" : "status";
     st.textContent = loud ? "Too loud to stay hidden. Speak softer."
-      : total > 30 && quiet / total > 0.85 ? "Too quiet. Move closer to the mic." : "Recording. Speak softly, close to the mic.";
+      : quiet ? "Too quiet. Speak a little louder or move closer to the mic."
+      : performance.now() - t0 > 1500 && !heard ? "Can't hear you. Check the mic."
+      : "Recording. Speak softly, close to the mic.";
     meterRaf = requestAnimationFrame(tick);
   };
   tick();
@@ -980,15 +983,19 @@ function startMeter(stream) {
 function stopMeter() { cancelAnimationFrame(meterRaf); $("meter").style.display = "none"; }
 // Loud speech is tonal (strong pitch), and tones show through the song on
 // phone speakers even at the same level, so warn and suggest a softer take.
-const LOUD_RMS = 0.16, LOUD_DB = -16; // raised after an iPhone 17 test: normal-to-slightly-raised speech did not leak
+const LOUD_RMS = 0.2, LOUD_DB = -14;  // raised twice after iPhone 17 tests: slightly raised speech did not leak
+// Too-quiet speech is buried under room noise in the earbuds once it is boosted.
+const QUIET_RMS = 0.03, QUIET_DB = -32;
 function voiceLoaded(label) {
   $("voiceStatus").textContent = "Processing…";
   setTimeout(() => {
     S.voiceKey = ""; refresh();
-    const st = $("voiceStatus"), loud = label === "Recorded" && db(activeRms(S.voiceRaw)) > LOUD_DB;
-    st.className = loud ? "status warn" : "status";
+    const lvl = label === "Recorded" ? db(activeRms(S.voiceRaw)) : -20, loud = lvl > LOUD_DB, quiet = lvl < QUIET_DB;
+    const st = $("voiceStatus");
+    st.className = loud || quiet ? "status warn" : "status";
     st.textContent = loud
       ? "This was recorded loudly, so it may be faintly heard on phone speakers. Record again more softly for the best result."
+      : quiet ? "This was recorded very quietly, so it may be hard to hear in earphones. Record again a little louder."
       : `${label}, ${(S.vBase.length / SR).toFixed(1)} s after trimming silence.`;
     $("playVoiceBtn").disabled = false;
     if (S.cover) suggest();
