@@ -94,7 +94,7 @@
   <header>
     <p class="brand">undertone</p>
     <h1>Hide a secret message in an audio file.</h1>
-    <p>Speakers play the song. Earphones play the song and you.</p>
+    <p>Share it in one tap, on WhatsApp, Instagram or any app.</p>
   </header>
 
   <figure>
@@ -154,34 +154,31 @@
     <li>
       <h2>Make it</h2>
       <p class="lead">On earphones the song plays on the left and your voice on the right. On a speaker it's just the song.</p>
-      <div class="grid">
-        <label class="field">Voice level
-          <select id="level">
-            <option value="-8">Quieter, best hidden</option>
-            <option value="-5" selected>Balanced</option>
-            <option value="-2">Louder</option>
-          </select>
-        </label>
-        <label class="field">Soft rain under the song
-          <select id="bed">
-            <option value="0" selected>Off</option>
-            <option value="-16">Faint</option>
-            <option value="-11">Soft</option>
-            <option value="-7">Noticeable</option>
-          </select>
-        </label>
-        <label class="field">Song in the right ear too
-          <select id="share">
-            <option value="0" selected>None (voice alone)</option>
-            <option value="0.3">A little</option>
-            <option value="0.5">Some</option>
-          </select>
-        </label>
-      </div>
-      <p class="note">Songs with gaps can let a faint voice through on phones with two speakers. Rain under the song, or a little song in the right ear, covers those gaps.</p>
       <details>
         <summary>More settings</summary>
         <div class="grid">
+          <label class="field">Voice level
+            <select id="level">
+              <option value="-8">Quieter, best hidden</option>
+              <option value="-5" selected>Balanced</option>
+              <option value="-2">Louder</option>
+            </select>
+          </label>
+          <label class="field">Soft rain under the song
+            <select id="bed">
+              <option value="0" selected>Off</option>
+              <option value="-16">Faint</option>
+              <option value="-11">Soft</option>
+              <option value="-7">Noticeable</option>
+            </select>
+          </label>
+          <label class="field">Song in the right ear too
+            <select id="share">
+              <option value="0" selected>None (voice alone)</option>
+              <option value="0.3">A little</option>
+              <option value="0.5">Some</option>
+            </select>
+          </label>
           <label class="field">Voice filter
             <select id="lowpass">
               <option value="0">Off</option>
@@ -211,6 +208,7 @@
             </select>
           </label>
         </div>
+        <p class="note">Songs with gaps can let a faint voice through on phones with two speakers. Rain under the song, or a little song in the right ear, covers those gaps.</p>
       </details>
       <div class="row" style="margin-top:16px">
         <button id="renderBtn" class="primary" disabled>Make the file</button>
@@ -223,6 +221,7 @@
   <footer>
     <p>Everything runs in your browser. Your recording and song are never uploaded.</p>
     <p>Works on any speaker. On phones with two speakers, a very faint voice can slip through in quiet parts of a song.</p>
+    <p>made by vishnu · <a href="https://www.instagram.com/pasta.myscreentime/" target="_blank" rel="noopener">@pasta.myscreentime</a></p>
   </footer>
 </main>
 
